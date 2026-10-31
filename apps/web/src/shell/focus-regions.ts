@@ -69,7 +69,7 @@ export async function focusOverviewWorkers(): Promise<boolean> {
   if (layout.overviewSidebar === "compact") return false;
   const fit = fitShell(layout);
   const overview = document.querySelector<HTMLElement>('[data-testid="overview-sidebar"]');
-  if (fit.sidebar !== "full" || overview === null) return false;
+  if ((fit.sidebar !== "full" && fit.sidebar !== "over") || overview === null) return false;
   // The workspace the window is on first, else the first open one with a worker.
   const worker =
     overview.querySelector<HTMLElement>(

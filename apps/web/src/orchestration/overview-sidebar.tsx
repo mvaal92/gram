@@ -253,7 +253,7 @@ export function OverviewSidebar() {
           aria-label="Compact overview"
           data-testid="overview-compact"
           title="Compact overview"
-          className="text-muted-foreground [-webkit-app-region:no-drag]"
+          className="text-muted-foreground [-webkit-app-region:no-drag] max-sm:hidden"
           onClick={() => switchOverview("compact")}
         >
           <PanelLeftDashed />
@@ -270,7 +270,11 @@ export function OverviewSidebar() {
         {!hidden.includes("pullRequests") && <OverviewPullRequests />}
         {!hidden.includes("doneToday") && <OverviewDoneToday />}
       </div>
-      {!hidden.includes("usage") && <OverviewFoot />}
+      {!hidden.includes("usage") && (
+        <div className="contents max-sm:hidden">
+          <OverviewFoot />
+        </div>
+      )}
     </aside>
   );
 }
@@ -732,7 +736,7 @@ export function WorkerRow({
       {working && (
         <span
           data-testid="overview-worker-step"
-          className="col-span-2 col-start-2 min-w-0 truncate text-[11px] text-muted-foreground/80"
+          className="col-span-2 col-start-2 min-w-0 truncate text-[11px] text-muted-foreground/80 max-sm:hidden"
         >
           <WorkLine threadId={row.threadId} report={row.report} />
         </span>
@@ -740,7 +744,11 @@ export function WorkerRow({
     </>
   );
   // The PR chips sit under the row, outside its button: each is a button of its own.
-  const chips = <WorkerPrChips threadId={row.threadId} cardPrs={row.prs} card={card} />;
+  const chips = (
+    <div className="contents max-sm:hidden">
+      <WorkerPrChips threadId={row.threadId} cardPrs={row.prs} card={card} />
+    </div>
+  );
   if (!card) {
     return (
       <RowMenu menu={<WorkerRowMenuItems threadId={row.threadId} />}>

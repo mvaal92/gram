@@ -17,10 +17,12 @@ import { Button } from "@/components/ui/button";
 import { BRANCH_PREFIXES } from "@/composer/branch-name";
 import { isMac } from "@/keyboard/registry";
 import { useShortcutHint } from "@/keyboard/use-shortcut-hint";
+import { formatClockTime } from "@/lib/time";
 import { useServerSettings } from "@/settings-sync/store";
 import { OVERVIEW_OPEN_FROM, useLayoutStore } from "@/stores/layout";
 
 import { branchPrefixSetting } from "./branch-prefix";
+import { copyText } from "./copy-text";
 import { GENERAL_DEFAULTS, resetFor } from "./defaults";
 import { OptionGroup, rowInputCls, SettingRow, Toggle } from "./fields";
 import { SettingsGroup } from "./settings-group";
@@ -275,8 +277,76 @@ export function GeneralSection() {
           />
         </SettingRow>
       </SettingsGroup>
+      <PhoneAccessSettings />
       <WindowSettings />
     </div>
+  );
+}
+
+/**
+ * Mints a one-time `/remote/pair` invitation on a local desktop instance and copies it to the
+ * clipboard without rendering or logging the secret URL.
+ */
+function PhoneAccessSettings() {
+  const [status, setStatus] = useState<string>();
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
+
+  const pair = async () => {
+    setBusy(true);
+    setStatus(undefined);
+    setError(undefined);
+    try {
+      const response = await fetch("/remote/pair", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      if (!response.ok) {
+        setError(
+          "Phone access is off. Start Gram with GRAM_REMOTE_ORIGIN set to your HTTPS .ts.net origin and Tailscale Serve running.",
+        );
+        return;
+      }
+      const data = (await response.json()) as { url?: unknown; expiresAt?: unknown };
+      if (typeof data.url !== "string" || typeof data.expiresAt !== "number") {
+        setError("Pairing unavailable.");
+        return;
+      }
+      await copyText(data.url);
+      setStatus(`Pairing link copied — valid until ${formatClockTime(data.expiresAt)}.`);
+    } catch (e) {
+      setError(errorMessage(e) || "Couldn't create a pairing link.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <SettingsGroup label="Phone access">
+      <SettingRow
+        label="Pair phone"
+        description="Copies a one-time 15-minute pairing link for a phone on your tailnet when GRAM_REMOTE_ORIGIN is set."
+        keywords={["phone", "mobile", "tailscale", "remote", "pair", "pairing"]}
+        error={error}
+        detail={
+          status && (
+            <p role="status" className="text-xs text-muted-foreground">
+              {status}
+            </p>
+          )
+        }
+      >
+        <Button
+          size="sm"
+          variant="outline"
+          data-testid="pair-phone-button"
+          disabled={busy}
+          onClick={() => void pair()}
+        >
+          Copy pairing link
+        </Button>
+      </SettingRow>
+    </SettingsGroup>
   );
 }
 

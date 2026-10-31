@@ -100,7 +100,7 @@ export function ShellTitlebar({
           />
         )}
         {/* Usage and Settings follow the toggle, as they do in the overview's header. */}
-        {!sidebarShown && <TopLeftNav className="mr-2" />}
+        {!sidebarShown && <TopLeftNav className="mr-2 @max-md/titlebar:hidden" />}
         <WorkspaceSwitcher
           className={cn(
             "shrink-0 [-webkit-app-region:no-drag]",
@@ -112,7 +112,7 @@ export function ShellTitlebar({
         {!soloBar && (
           <>
             <ViewSwitcher className="shrink-0 [-webkit-app-region:no-drag]" />
-            <FakeAgentBadge className="[-webkit-app-region:no-drag]" />
+            <FakeAgentBadge className="[-webkit-app-region:no-drag] @max-md/titlebar:hidden" />
           </>
         )}
         {/* The thread's header or Board's controls, title first: it truncates before
@@ -127,7 +127,7 @@ export function ShellTitlebar({
         <span
           aria-hidden
           data-testid="titlebar-divider"
-          className="mx-1 h-4 w-px shrink-0 bg-border"
+          className="mx-1 h-4 w-px shrink-0 bg-border @max-sm/titlebar:hidden"
         />
       )}
       {/* The workspace's workers, tidy-up and pause are Board's and the orchestrator's: a
@@ -141,12 +141,12 @@ export function ShellTitlebar({
           <Foldable level={1} gap={4}>
             <TitlebarTidyUp className="[-webkit-app-region:no-drag]" />
           </Foldable>
-          <TitlebarPause className="[-webkit-app-region:no-drag]" />
+          <TitlebarPause className="[-webkit-app-region:no-drag] @max-sm/titlebar:hidden" />
         </>
       )}
       {/* Narrow, the title needs the room more than the meter needs its words. */}
       <UsageMeter
-        className="mr-1 [-webkit-app-region:no-drag]"
+        className="mr-1 [-webkit-app-region:no-drag] @max-sm/titlebar:hidden"
         textClassName="@max-2xl/titlebar:hidden"
       />
       <NotificationsBell />

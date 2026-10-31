@@ -1,0 +1,1077 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mobile interface directions · v1</title>
+    <link rel="stylesheet" href="kit/tokens.css" />
+    <link rel="stylesheet" href="kit/kit.css" />
+    <script src="kit/kit.js" defer></script>
+    <script type="application/json" id="mock-tweaks">
+      {
+        "density": {
+          "label": "Density",
+          "type": "enum",
+          "options": ["compact", "comfortable"],
+          "default": "compact"
+        }
+      }
+    </script>
+    <style>
+      [hidden] {
+        display: none !important;
+      }
+
+      .m-phone {
+        display: flex;
+        flex-direction: column;
+        width: 390px;
+        min-height: 844px;
+        height: 844px;
+        background: var(--surface-2);
+        color: var(--fg);
+        font-size: var(--text-sm);
+        overflow: hidden;
+        position: relative;
+      }
+
+      /* ---------- Top title bar ---------- */
+      .m-bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 40px;
+        padding: 0 8px;
+        border-bottom: 1px solid var(--border-subtle);
+        background: var(--surface-1);
+        flex: none;
+      }
+      .m-bar .btn.sm.icon {
+        width: 28px;
+        height: 28px;
+        color: var(--fg-muted);
+      }
+      .m-bar .ws-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 26px;
+        padding: 0 8px;
+        border: 0;
+        border-radius: var(--radius-md);
+        background: none;
+        color: var(--fg);
+        font: 600 var(--text-sm) / 1 var(--font-ui);
+        cursor: pointer;
+      }
+      .m-bar .ws-btn:hover {
+        background: var(--surface-hover);
+      }
+      .m-bar .ws-btn .icon {
+        width: 12px;
+        height: 12px;
+        color: var(--fg-subtle);
+      }
+      .m-bar .segmented button {
+        padding: 2px 8px;
+        font-size: var(--text-xs);
+      }
+      .m-bar .push {
+        margin-left: auto;
+      }
+
+      /* ---------- Thread body ---------- */
+      .m-main {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .m-scroll {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .m-user {
+        align-self: flex-end;
+        max-width: 85%;
+        padding: 8px 12px;
+        border-radius: var(--radius-xl);
+        border-end-end-radius: var(--radius-xs);
+        background: var(--surface-3);
+        border: 1px solid var(--border-subtle);
+        color: var(--fg);
+      }
+      .m-reply {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        color: var(--fg);
+      }
+      .m-stream-line {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: var(--text-xs);
+        color: var(--fg-muted);
+      }
+      .m-stream-line .icon {
+        width: 14px;
+        height: 14px;
+        color: var(--merged);
+      }
+      .m-stream-line .time {
+        margin-left: auto;
+        font-variant-numeric: tabular-nums;
+        color: var(--fg-subtle);
+      }
+
+      /* ---------- Feature card in stream ---------- */
+      .m-fcard {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px 12px;
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--border-subtle);
+        background: var(--surface-3);
+      }
+      .m-fcard-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .m-fcard-head strong {
+        font-size: var(--text-sm);
+        font-weight: 600;
+      }
+      .m-fcard-head .time {
+        margin-left: auto;
+        font-size: var(--text-xs);
+        color: var(--fg-subtle);
+        font-variant-numeric: tabular-nums;
+      }
+      .m-stations {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: var(--text-xs);
+        color: var(--fg-muted);
+      }
+      .m-stations .bar {
+        width: 12px;
+        height: 1px;
+        background: var(--border-strong);
+      }
+      .m-wrow {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: var(--text-xs);
+        min-width: 0;
+      }
+      .m-wrow .name {
+        font-weight: 550;
+        color: var(--fg);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 112px;
+      }
+      .m-wrow .now {
+        flex: 1;
+        min-width: 0;
+        color: var(--fg-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .m-pr-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: 0 5px;
+        height: 18px;
+        border-radius: var(--radius-xs);
+        border: 1px solid var(--border-subtle);
+        font: 500 11px / 1 var(--font-mono);
+        color: var(--fg);
+        flex: none;
+      }
+      .m-pr-chip .icon {
+        width: 11px;
+        height: 11px;
+        color: var(--success-text);
+      }
+
+      /* ---------- Ask stack + composer ---------- */
+      .m-dock {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 6px 10px 10px;
+        background: var(--surface-2);
+        flex: none;
+      }
+      .m-ask {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 8px 10px;
+        border-radius: 16px;
+        border: 1px solid var(--border-subtle);
+        background: var(--surface-3);
+      }
+      .m-ask-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: var(--text-xs);
+        color: var(--fg-muted);
+      }
+      .m-ask-head .icon {
+        width: 14px;
+        height: 14px;
+        color: var(--status-needs);
+      }
+      .m-ask-head .step {
+        margin-left: auto;
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+      }
+      .m-ask-body {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .m-ask-acts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding-top: 2px;
+      }
+      .m-ask-acts .btn.sm {
+        height: 28px;
+        padding: 0 10px;
+      }
+
+      .m-composer {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border-subtle);
+        background: var(--surface-3);
+      }
+      .m-composer .plus-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        border: 0;
+        background: var(--surface-hover);
+        color: var(--fg-muted);
+        display: grid;
+        place-items: center;
+        flex: none;
+        cursor: pointer;
+      }
+      .m-composer-input {
+        color: var(--fg-subtle);
+        font-size: var(--text-sm);
+        flex: 1;
+        min-width: 0;
+      }
+      .m-composer .send {
+        margin-left: auto;
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        border: 0;
+        background: var(--accent);
+        color: var(--on-accent);
+        display: grid;
+        place-items: center;
+        flex: none;
+        cursor: pointer;
+      }
+
+      /* ---------- Full-width Overview sheet (A Sheet @ overview) ---------- */
+      .m-overview {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        background: var(--surface-1);
+        padding: 8px 10px 12px;
+        gap: 10px;
+        overflow-y: auto;
+      }
+      .m-ny-pill {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        min-height: 36px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: var(--radius-md);
+        background: var(--needs-tint);
+        color: var(--status-needs);
+        font: 600 var(--text-sm) / 1 var(--font-ui);
+        text-align: left;
+        cursor: pointer;
+      }
+      .m-sec-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 6px 2px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--fg-subtle);
+      }
+      .m-ws-block {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .m-ws-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 36px;
+        padding: 0 8px;
+        border-radius: var(--radius-sm);
+        background: var(--surface-3);
+        color: var(--fg);
+        text-decoration: none;
+        font-weight: 550;
+      }
+      .m-ws-row .meta {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: var(--text-xs);
+        font-weight: 400;
+        color: var(--fg-muted);
+      }
+      .m-ws-features {
+        margin-left: 12px;
+        padding-left: 8px;
+        border-left: 1px solid var(--border-subtle);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .m-feat-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 6px 0;
+        font-size: var(--text-xs);
+        color: var(--fg-muted);
+      }
+      .m-ticks {
+        display: inline-flex;
+        gap: 2px;
+      }
+      .m-ticks i {
+        display: block;
+        width: 8px;
+        height: 3px;
+        border-radius: 99px;
+        background: var(--border-strong);
+      }
+      .m-ticks i.done {
+        background: var(--fg-muted);
+      }
+      .m-ticks i.now {
+        background: var(--status-working);
+      }
+      .m-ov-worker {
+        display: grid;
+        grid-template-columns: 10px minmax(0, 1fr) auto;
+        align-items: center;
+        column-gap: 8px;
+        row-gap: 2px;
+        padding: 6px 8px;
+        border-radius: var(--radius-sm);
+        text-decoration: none;
+        color: var(--fg);
+      }
+      .m-ov-worker:hover {
+        background: var(--surface-hover);
+      }
+      .m-ov-worker .sub {
+        grid-column: 2 / -1;
+        font-size: var(--text-xs);
+        color: var(--fg-muted);
+      }
+      .m-ov-worker .sub.needs {
+        color: var(--status-needs);
+      }
+
+      /* ---------- Mobile Board (A Sheet @ board) ---------- */
+      .m-board {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        padding: 10px;
+        gap: 10px;
+      }
+      .m-bline {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px 12px;
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--border-subtle);
+        background: var(--surface-3);
+      }
+      .m-bline-top {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .m-bline-top strong {
+        font-size: var(--text-sm);
+      }
+      .m-bline-top .repo {
+        margin-left: auto;
+        font-size: var(--text-xs);
+        color: var(--fg-subtle);
+      }
+      .m-bchip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-subtle);
+        background: var(--surface-2);
+        font-size: var(--text-xs);
+      }
+      .m-bchip.needs {
+        border-color: color-mix(in oklab, var(--status-needs) 50%, transparent);
+        background: var(--needs-tint);
+      }
+      .m-bchip .station {
+        margin-left: auto;
+        color: var(--fg-subtle);
+        font-size: 11px;
+      }
+
+      /* ---------- Right Panel over chat (A Sheet @ panel) ---------- */
+      .m-panel {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        background: var(--surface-1);
+      }
+      .m-panel-tabs {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 0 6px;
+        height: 38px;
+        border-bottom: 1px solid var(--border-subtle);
+        overflow-x: auto;
+      }
+      .m-diff-bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-bottom: 1px solid var(--border-subtle);
+        font-size: var(--text-xs);
+        color: var(--fg-muted);
+      }
+      .m-diff-file {
+        margin: 10px;
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+        background: var(--surface-2);
+        overflow: hidden;
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+      }
+      .m-diff-file-head {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 10px;
+        border-bottom: 1px solid var(--border-subtle);
+        background: var(--surface-3);
+      }
+      .m-diff-line {
+        padding: 2px 10px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .m-diff-line.add {
+        background: var(--success-tint);
+        color: var(--success-text);
+      }
+      .m-diff-line.del {
+        background: var(--danger-tint);
+        color: var(--danger-text);
+      }
+
+      /* ---------- C Pill floating bar ---------- */
+      .m-float-pill {
+        position: absolute;
+        left: 50%;
+        bottom: 12px;
+        transform: translateX(-50%);
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 6px;
+        border-radius: 999px;
+        background: var(--surface-1);
+        border: 1px solid var(--border-strong);
+        box-shadow: var(--shadow-overlay);
+        z-index: 10;
+      }
+      .m-float-pill button {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 32px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: 999px;
+        background: none;
+        color: var(--fg-muted);
+        font: 550 var(--text-xs) / 1 var(--font-ui);
+        cursor: pointer;
+      }
+      .m-float-pill button[aria-pressed="true"] {
+        background: var(--surface-3);
+        color: var(--fg);
+      }
+    </style>
+  </head>
+  <body class="mock">
+    <main class="mock-canvas">
+      <p class="mock-note">
+        How should Gram's shell adapt on a 390 × 844 phone over Tailscale Serve?
+        <strong>A Sheet</strong> keeps the single top title bar and opens the Overview sidebar and
+        Right Panel as full-width sheets over the main column, stacking Board rows vertically.
+        <strong>B Tabbar</strong> adds a persistent bottom tab bar. <strong>C Pill</strong> floats a
+        mode pill at the bottom edge. Pick one by name; use the state buttons on A Sheet to inspect
+        Chat, Overview, Board, Panel and Empty states.
+      </p>
+
+      <!-- ===================================================================== -->
+      <!-- Direction A: Sheet (full-width overview & panel over main column)     -->
+      <!-- ===================================================================== -->
+      <section
+        class="board"
+        data-name="A Sheet"
+        data-size="390x844"
+        data-states="chat,overview,board,panel,empty"
+      >
+        <div class="board-frame">
+          <div class="m-phone">
+            <!-- Top bar -->
+            <header class="m-bar">
+              <button
+                class="btn sm ghost icon"
+                type="button"
+                title="Show sidebar (⌘B)"
+                aria-label="Show sidebar"
+                data-when="chat,board,panel,empty"
+              >
+                <i data-icon="panel"></i>
+              </button>
+              <button
+                class="btn sm ghost icon"
+                type="button"
+                title="Hide sidebar (⌘B)"
+                aria-label="Hide sidebar"
+                aria-pressed="true"
+                data-when="overview"
+              >
+                <i data-icon="x"></i>
+              </button>
+              <button class="ws-btn" type="button" title="Workspace: Gram">
+                Gram<i data-icon="down"></i>
+              </button>
+              <span class="segmented" role="group" aria-label="View" data-when="chat,board,empty">
+                <button type="button" aria-pressed="true" data-when="chat,empty">Chat</button>
+                <button type="button" data-when="board">Chat</button>
+                <button type="button" data-when="chat,empty">Board</button>
+                <button type="button" aria-pressed="true" data-when="board">Board</button>
+              </span>
+              <span class="badge warning push" title="2 asks waiting">2</span>
+              <button
+                class="btn sm ghost icon"
+                type="button"
+                title="Notifications"
+                aria-label="Notifications"
+              >
+                <i data-icon="bell"></i>
+              </button>
+              <button
+                class="btn sm ghost icon"
+                type="button"
+                title="More controls"
+                aria-label="More controls"
+              >
+                <i data-icon="more"></i>
+              </button>
+              <button
+                class="btn sm ghost icon"
+                type="button"
+                title="Show right panel"
+                aria-label="Show right panel"
+                data-when="chat,board,overview,empty"
+              >
+                <i data-icon="cols"></i>
+              </button>
+              <button
+                class="btn sm ghost icon"
+                type="button"
+                title="Hide right panel"
+                aria-label="Hide right panel"
+                aria-pressed="true"
+                data-when="panel"
+              >
+                <i data-icon="cols"></i>
+              </button>
+            </header>
+
+            <!-- STATE: chat -->
+            <div class="m-main" data-when="chat">
+              <div class="m-scroll">
+                <div class="m-user">
+                  Keep the mobile overview full-width at 390 px and stack the Board stations
+                  cleanly.
+                </div>
+                <div class="m-reply">
+                  <p>
+                    I split the work into the shell fit update and the responsive board layout.
+                    <code>fitShell</code> now opens the overview over the main column when the
+                    viewport is narrower than 420 px.
+                  </p>
+                  <div class="m-stream-line">
+                    <i data-icon="merge"></i>
+                    <span>remote-access · Tailscale Serve paired</span>
+                    <span class="m-pr-chip">#198</span>
+                    <span class="time">09:42</span>
+                  </div>
+                  <article class="m-fcard" aria-label="Feature mobile-interface">
+                    <div class="m-fcard-head">
+                      <strong>mobile-interface</strong>
+                      <span class="badge">build</span>
+                      <span class="time">live · 17:05</span>
+                    </div>
+                    <div class="m-stations" aria-label="Stage: Working">
+                      <span class="dot"></span><span class="bar"></span>
+                      <strong style="color: var(--fg)">Working</strong><span class="bar"></span>
+                      <span class="dot"></span><span class="bar"></span> <span class="dot"></span
+                      ><span class="bar"></span>
+                      <span class="dot"></span>
+                    </div>
+                    <div class="m-wrow">
+                      <span class="dot working"></span>
+                      <span class="name">Shell &amp; overview</span>
+                      <span class="now">editing layout.ts</span>
+                      <span class="m-pr-chip"><i data-icon="check"></i>#214</span>
+                    </div>
+                    <div class="m-wrow">
+                      <span class="dot needs"></span>
+                      <span class="name">Board mobile stack</span>
+                      <span class="now" style="color: var(--status-needs)">asks you</span>
+                      <span class="m-pr-chip">#215</span>
+                    </div>
+                  </article>
+                </div>
+              </div>
+
+              <div class="m-dock">
+                <section class="m-ask" aria-label="Asks">
+                  <div class="m-ask-head">
+                    <i data-icon="shield"></i>
+                    <span><strong style="color: var(--fg)">2</strong> asks</span>
+                    <span class="step">1/2</span>
+                  </div>
+                  <div class="m-ask-body">
+                    <div>Run <code>bun run check:scaffold</code></div>
+                    <span class="subtle xsmall">Shell &amp; overview · gram</span>
+                  </div>
+                  <div class="m-ask-acts">
+                    <button class="btn sm primary" type="button">Allow</button>
+                    <button class="btn sm ghost" type="button">Deny</button>
+                    <button class="btn sm ghost" type="button" style="margin-left: auto">
+                      Next <i data-icon="right"></i>
+                    </button>
+                  </div>
+                </section>
+
+                <div class="m-composer">
+                  <button class="plus-btn" type="button" aria-label="Composer options">
+                    <i data-icon="plus"></i>
+                  </button>
+                  <div class="m-composer-input">Message…</div>
+                  <button class="send" type="button" aria-label="Send">
+                    <i data-icon="up"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- STATE: overview (full-width sheet over main) -->
+            <aside class="m-overview" aria-label="Overview" data-when="overview">
+              <div class="row between" style="padding: 0 2px">
+                <div class="row">
+                  <button class="btn sm ghost icon" type="button" title="Usage" aria-label="Usage">
+                    <i data-icon="sliders"></i>
+                  </button>
+                  <button
+                    class="btn sm ghost icon"
+                    type="button"
+                    title="Settings"
+                    aria-label="Settings"
+                  >
+                    <i data-icon="settings"></i>
+                  </button>
+                </div>
+                <button class="btn sm" type="button"><i data-icon="plus"></i>New</button>
+              </div>
+
+              <button class="m-ny-pill" type="button">
+                <span class="dot needs"></span>
+                <span class="grow">2 need you</span>
+              </button>
+
+              <div class="m-sec-title"><i data-icon="down"></i>Orchestrators <span>2</span></div>
+
+              <div class="m-ws-block">
+                <a class="m-ws-row" href="#" data-goto="A Sheet@chat">
+                  <span class="dot working"></span>
+                  <span>Gram</span>
+                  <span class="meta">
+                    <i data-icon="user"></i>2 · 1 working
+                    <span class="badge warning">2</span>
+                  </span>
+                </a>
+                <div class="m-ws-features">
+                  <div class="m-feat-head">
+                    <span>mobile-interface</span>
+                    <span class="m-ticks" aria-label="Stage: Working">
+                      <i class="done"></i><i class="now"></i><i></i><i></i><i></i>
+                    </span>
+                  </div>
+                  <a class="m-ov-worker" href="#" data-goto="A Sheet@chat">
+                    <span class="dot working"></span>
+                    <span>Shell &amp; overview</span>
+                    <span class="subtle xsmall">17:05</span>
+                    <span class="sub">Running bun run test layout.test.ts</span>
+                  </a>
+                  <a class="m-ov-worker" href="#" data-goto="A Sheet@chat">
+                    <span class="dot needs"></span>
+                    <span>Board mobile stack</span>
+                    <span class="subtle xsmall">16:58</span>
+                    <span class="sub needs">asks you</span>
+                  </a>
+                </div>
+              </div>
+
+              <a class="m-ws-row" href="#" style="background: transparent; font-weight: 400">
+                <span class="dot"></span>
+                <span>[Secondary workspace]</span>
+                <span class="meta">idle</span>
+              </a>
+
+              <div class="m-sec-title"><i data-icon="down"></i>Solo threads <span>1</span></div>
+              <a class="m-ov-worker" href="#" data-goto="A Sheet@chat">
+                <span class="dot"></span>
+                <span>Fix flaky retry test</span>
+                <span class="subtle xsmall">09:42</span>
+              </a>
+            </aside>
+
+            <!-- STATE: board (stacked mobile feature lines) -->
+            <div class="m-main" data-when="board">
+              <div class="m-board" role="region" aria-label="Features">
+                <div class="m-bline">
+                  <div class="m-bline-top">
+                    <strong>mobile-interface</strong>
+                    <span class="badge">build</span>
+                    <span class="repo">gram</span>
+                  </div>
+                  <span class="muted xsmall">
+                    Full-width overview sheet and stacked board cards at 390 px.
+                  </span>
+                  <div class="m-bchip">
+                    <span class="dot working"></span>
+                    <strong>Shell &amp; overview</strong>
+                    <span class="muted">editing layout.ts</span>
+                    <span class="station">Working · #214</span>
+                  </div>
+                  <div class="m-bchip needs">
+                    <span class="dot needs"></span>
+                    <strong>Board mobile stack</strong>
+                    <span style="color: var(--status-needs)">asks you</span>
+                    <span class="station">Review · #215</span>
+                  </div>
+                </div>
+
+                <div class="m-bline">
+                  <div class="m-bline-top">
+                    <strong>remote-access</strong>
+                    <span class="badge merged">merged</span>
+                    <span class="repo">gram</span>
+                  </div>
+                  <div class="m-bchip">
+                    <span class="dot success"></span>
+                    <strong>Tailscale Serve pairing</strong>
+                    <span class="muted">merged</span>
+                    <span class="station">Merged · #198</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="m-dock">
+                <section class="m-ask" aria-label="Asks">
+                  <div class="m-ask-head">
+                    <i data-icon="help"></i>
+                    <span><strong style="color: var(--fg)">2</strong> asks</span>
+                    <span class="step">2/2</span>
+                  </div>
+                  <div class="m-ask-body">
+                    <div>Stack Board stations below 640 px?</div>
+                    <span class="subtle xsmall">Board mobile stack · gram</span>
+                  </div>
+                  <div class="m-ask-acts">
+                    <button class="btn sm primary" type="button">Stack vertically</button>
+                    <button class="btn sm" type="button">Horizontal scroll</button>
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            <!-- STATE: panel (RightPanel over chat) -->
+            <aside class="m-panel" aria-label="Right panel" data-when="panel">
+              <div class="m-panel-tabs" role="tablist">
+                <button class="tab" role="tab" aria-selected="true" type="button">
+                  <i data-icon="diff"></i> Diff
+                </button>
+                <button class="tab" role="tab" aria-selected="false" type="button">
+                  <i data-icon="pr"></i> PR
+                </button>
+                <button class="tab" role="tab" aria-selected="false" type="button">
+                  <i data-icon="folder"></i> Files
+                </button>
+                <button class="tab" role="tab" aria-selected="false" type="button">
+                  <i data-icon="terminal"></i>
+                </button>
+                <button class="tab" role="tab" aria-selected="false" type="button">
+                  <i data-icon="hand"></i> 2
+                </button>
+              </div>
+              <div class="m-diff-bar">
+                <span class="segmented" role="group" aria-label="Diff scope">
+                  <button type="button" aria-pressed="true">Uncommitted</button>
+                  <button type="button">Branch</button>
+                  <button type="button">Turn</button>
+                </span>
+                <span style="margin-left: auto" class="mono">
+                  2 files · <span style="color: var(--success-text)">+34</span>{" "}
+                  <span style="color: var(--danger-text)">−6</span>
+                </span>
+              </div>
+              <div class="m-diff-file">
+                <div class="m-diff-file-head">
+                  <span>apps/web/src/stores/layout.ts</span>
+                  <span style="color: var(--success-text)">+18 −3</span>
+                </div>
+                <div class="m-diff-line del">- sidebar: "compact",</div>
+                <div class="m-diff-line add">
+                  + sidebar: room &lt; OVERVIEW_RAIL_WIDTH ? "over" : "compact",
+                </div>
+                <div class="m-diff-line add">
+                  + sidebarWidth: room &lt; OVERVIEW_RAIL_WIDTH ? input.windowWidth : railWidth,
+                </div>
+              </div>
+            </aside>
+
+            <!-- STATE: empty -->
+            <div class="m-main" data-when="empty">
+              <div class="empty" style="margin: auto">
+                <span class="empty-icon"><i data-icon="grid"></i></span>
+                <h3>No features yet</h3>
+                <p class="small">Ask the orchestrator to build one, or start a new task.</p>
+                <button class="btn sm primary" type="button">
+                  <i data-icon="plus"></i>New task
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================== -->
+      <!-- Direction B: Tabbar (persistent bottom navigation bar)                -->
+      <!-- ===================================================================== -->
+      <section class="board" data-name="B Tabbar" data-size="390x844">
+        <div class="board-frame">
+          <div class="m-phone">
+            <header class="m-bar">
+              <button class="ws-btn" type="button">Gram<i data-icon="down"></i></button>
+              <span class="subtle xsmall">Orchestrator</span>
+              <span class="push"></span>
+              <button class="btn sm ghost icon" type="button" aria-label="Notifications">
+                <i data-icon="bell"></i>
+              </button>
+              <button class="btn sm ghost icon" type="button" aria-label="More">
+                <i data-icon="more"></i>
+              </button>
+            </header>
+
+            <div class="m-main">
+              <div class="m-scroll">
+                <div class="m-user">
+                  Keep the mobile overview full-width at 390 px and stack the Board stations
+                  cleanly.
+                </div>
+                <div class="m-reply">
+                  <p>
+                    In Direction B, a persistent bottom tab bar switches between Overview, Chat,
+                    Board, Needs you and Panel, at the cost of 56 px of vertical transcript height.
+                  </p>
+                  <article class="m-fcard" aria-label="Feature mobile-interface">
+                    <div class="m-fcard-head">
+                      <strong>mobile-interface</strong>
+                      <span class="badge">build</span>
+                      <span class="time">live · 17:05</span>
+                    </div>
+                    <div class="m-wrow">
+                      <span class="dot working"></span>
+                      <span class="name">Shell &amp; overview</span>
+                      <span class="now">editing layout.ts</span>
+                      <span class="m-pr-chip">#214</span>
+                    </div>
+                  </article>
+                </div>
+              </div>
+
+              <div class="m-dock">
+                <section class="m-ask" aria-label="Asks">
+                  <div class="m-ask-head">
+                    <i data-icon="shield"></i>
+                    <span><strong style="color: var(--fg)">2</strong> asks</span>
+                    <span class="step">1/2</span>
+                  </div>
+                  <div class="m-ask-body">
+                    <div>Run <code>bun run check:scaffold</code></div>
+                  </div>
+                  <div class="m-ask-acts">
+                    <button class="btn sm primary" type="button">Allow</button>
+                    <button class="btn sm ghost" type="button">Deny</button>
+                  </div>
+                </section>
+
+                <div class="m-composer">
+                  <button class="plus-btn" type="button" aria-label="Composer options">
+                    <i data-icon="plus"></i>
+                  </button>
+                  <div class="m-composer-input">Message…</div>
+                  <button class="send" type="button" aria-label="Send">
+                    <i data-icon="up"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <nav class="tabbar" aria-label="Primary" style="padding: 4px 4px 10px">
+              <a href="#"><i data-icon="orch"></i>Overview</a>
+              <a href="#" aria-current="page"><i data-icon="msg"></i>Chat</a>
+              <a href="#"><i data-icon="grid"></i>Board</a>
+              <a href="#"><i data-icon="hand"></i>Needs you (2)</a>
+              <a href="#"><i data-icon="diff"></i>Panel</a>
+            </nav>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================== -->
+      <!-- Direction C: Pill (floating bottom mode switcher)                     -->
+      <!-- ===================================================================== -->
+      <section class="board" data-name="C Pill" data-size="390x844">
+        <div class="board-frame">
+          <div class="m-phone">
+            <header class="m-bar">
+              <button class="ws-btn" type="button">Gram<i data-icon="down"></i></button>
+              <span class="push"></span>
+              <span class="badge warning">2 need you</span>
+              <button class="btn sm ghost icon" type="button" aria-label="More">
+                <i data-icon="more"></i>
+              </button>
+            </header>
+
+            <div class="m-main" style="padding-bottom: 52px">
+              <div class="m-scroll">
+                <div class="m-user">
+                  Keep the mobile overview full-width at 390 px and stack the Board stations
+                  cleanly.
+                </div>
+                <div class="m-reply">
+                  <p>
+                    In Direction C, a floating pill sits at the bottom of the screen to switch
+                    between Overview, Chat, Board and Diff, pushing the composer and Ask Stack up.
+                  </p>
+                  <article class="m-fcard" aria-label="Feature mobile-interface">
+                    <div class="m-fcard-head">
+                      <strong>mobile-interface</strong>
+                      <span class="badge">build</span>
+                      <span class="time">live · 17:05</span>
+                    </div>
+                    <div class="m-wrow">
+                      <span class="dot working"></span>
+                      <span class="name">Shell &amp; overview</span>
+                      <span class="now">editing layout.ts</span>
+                      <span class="m-pr-chip">#214</span>
+                    </div>
+                  </article>
+                </div>
+              </div>
+
+              <div class="m-dock">
+                <div class="m-composer">
+                  <button class="plus-btn" type="button" aria-label="Composer options">
+                    <i data-icon="plus"></i>
+                  </button>
+                  <div class="m-composer-input">Message…</div>
+                  <button class="send" type="button" aria-label="Send">
+                    <i data-icon="up"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="m-float-pill" role="group" aria-label="Switch surface">
+              <button type="button"><i data-icon="panel"></i>Overview</button>
+              <button type="button" aria-pressed="true"><i data-icon="msg"></i>Chat</button>
+              <button type="button"><i data-icon="grid"></i>Board</button>
+              <button type="button"><i data-icon="diff"></i>Diff</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,31 @@
+{
+  "title": "Mobile interface",
+  "slug": "mobile-interface",
+  "status": "approved",
+  "template": "options",
+  "current": 2,
+  "approved": 2,
+  "approvedDirection": "A Sheet",
+  "versions": [
+    {
+      "n": 1,
+      "file": "v1.html",
+      "created": "2026-10-31"
+    },
+    {
+      "n": 2,
+      "file": "v2.html",
+      "created": "2026-10-31"
+    }
+  ],
+  "directions": [
+    {
+      "name": "A Sheet",
+      "board": "a-sheet",
+      "shots": {
+        "dark": "shots/a-sheet-dark.png",
+        "light": "shots/a-sheet-light.png"
+      }
+    }
+  ]
+}

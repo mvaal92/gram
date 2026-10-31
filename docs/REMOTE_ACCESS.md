@@ -124,8 +124,9 @@ data directory you already use (`GRAM_DATA_DIR`, if you set one).
    See Tailscale's [Serve command reference](https://tailscale.com/docs/reference/tailscale-cli/serve)
    and [Serve guide](https://tailscale.com/docs/features/tailscale-serve).
 
-4. From the authenticated **local** Gram window's developer console, create a pairing link
-   with the existing cookie (in development, the Vite proxy forwards only this endpoint):
+4. From the authenticated **local** Gram window, open **Settings → General → Phone access** and
+   click **Copy pairing link** (or run this in the developer console, which in development the Vite
+   proxy also forwards):
 
    ```js
    const pairingResponse = await fetch("/remote/pair", {
