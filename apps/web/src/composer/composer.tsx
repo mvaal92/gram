@@ -999,7 +999,7 @@ export function Composer({ threadId, focused }: { threadId: ThreadId; focused: b
           ref={mirrorRef}
           aria-hidden
           data-composer-mirror
-          className={cn(GHOST_MIRROR, isMobile && "px-1.5 py-1.5 text-sm leading-snug")}
+          className={cn(GHOST_MIRROR, isMobile && "px-1.5 py-1.5 text-base leading-snug")}
         >
           <span data-testid="composer-ghost">
             <span className="text-transparent">{text}</span>
@@ -1030,6 +1030,10 @@ export function Composer({ threadId, focused }: { threadId: ThreadId; focused: b
         aria-controls={listOpen ? listId : undefined}
         aria-activedescendant={listOpen ? `${listId}-${listActiveIndex}` : undefined}
         aria-autocomplete="list"
+        enterKeyHint={sendKey === "enter" ? "send" : "enter"}
+        autoCapitalize="sentences"
+        autoCorrect="on"
+        spellCheck
         value={text}
         // Dictation's partial is drawn behind the field from its first character, where the
         // placeholder sits; cleared from the start, so the first words don't land on it.
@@ -1046,7 +1050,7 @@ export function Composer({ threadId, focused }: { threadId: ThreadId; focused: b
         }
         className={cn(
           isMobile
-            ? "relative block max-h-24 min-h-8 w-full resize-none bg-transparent px-1.5 py-1.5 text-sm leading-snug outline-none field-sizing-content placeholder:text-muted-foreground"
+            ? "relative block max-h-24 min-h-8 w-full resize-none bg-transparent px-1.5 py-1.5 text-base leading-snug outline-none field-sizing-content placeholder:text-muted-foreground"
             : cn(SLAB_TEXTAREA, "relative"),
         )}
         onFocus={(event) => {

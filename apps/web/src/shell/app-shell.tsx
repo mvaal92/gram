@@ -57,19 +57,30 @@ export function AppShell() {
     if (!hasThread) setPanelExpanded(false);
   }, [hasThread, setPanelExpanded]);
 
-  // Keep the app shell sized to the visual viewport on mobile browsers so an open software
-  // keyboard leaves the top ~50% of the screen for the chat interface and composer.
+  // Keep the app shell sized and anchored to the visual viewport on mobile browsers so an open
+  // native iOS/Android keyboard slides smoothly and leaves the top ~50% of the screen for chat.
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
+    let frame = 0;
     const syncViewport = () => {
-      document.documentElement.style.setProperty("--visual-viewport-height", `${vv.height}px`);
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const root = document.documentElement;
+        root.style.setProperty("--visual-viewport-height", `${Math.round(vv.height)}px`);
+        root.style.setProperty("--visual-viewport-offset-top", `${Math.round(vv.offsetTop)}px`);
+        if (vv.offsetTop > 0) window.scrollTo(0, 0);
+      });
     };
     syncViewport();
     vv.addEventListener("resize", syncViewport);
+    vv.addEventListener("scroll", syncViewport);
     return () => {
+      cancelAnimationFrame(frame);
       vv.removeEventListener("resize", syncViewport);
+      vv.removeEventListener("scroll", syncViewport);
       document.documentElement.style.removeProperty("--visual-viewport-height");
+      document.documentElement.style.removeProperty("--visual-viewport-offset-top");
     };
   }, []);
 
@@ -112,6 +123,7 @@ export function AppShell() {
         )}
         style={{
           height: "var(--visual-viewport-height, 100dvh)",
+          transform: "translateY(var(--visual-viewport-offset-top, 0px))",
           gridTemplateColumns: panelLeft
             ? `${left}px ${right}px minmax(0,1fr)`
             : `${left}px minmax(0,1fr) ${right}px`,

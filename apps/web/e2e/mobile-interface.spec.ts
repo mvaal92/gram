@@ -101,9 +101,13 @@ test("on a 390 × 844 phone, the composer shows only +, input and Post, and Show
   await page.keyboard.press("Escape");
   await expect(menu).toBeHidden();
 
-  // Focusing the composer to write sizes the shell to the visual viewport so the chat interface
-  // and the OS keyboard each take about half the screen.
+  // Focusing the composer to write sizes the shell to the visual viewport (with 16px text-base and
+  // enterKeyHint="send" so iOS Safari never auto-zooms) so the chat interface and the OS keyboard
+  // each take about half the screen.
   const messageInput = toolbar.getByLabel("Message", { exact: true });
+  await expect(messageInput).toHaveAttribute("enterkeyhint", "send");
+  await expect(messageInput).toHaveAttribute("autocapitalize", "sentences");
+  await expect(messageInput).toHaveCSS("font-size", "16px");
   await messageInput.focus();
   await expect(page.locator("[data-pane-root]")).toHaveAttribute("data-composer-writing", "true");
   await page.evaluate(() => {
