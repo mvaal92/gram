@@ -57,6 +57,22 @@ export function AppShell() {
     if (!hasThread) setPanelExpanded(false);
   }, [hasThread, setPanelExpanded]);
 
+  // Keep the app shell sized to the visual viewport on mobile browsers so an open software
+  // keyboard leaves the top ~50% of the screen for the chat interface and composer.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const syncViewport = () => {
+      document.documentElement.style.setProperty("--visual-viewport-height", `${vv.height}px`);
+    };
+    syncViewport();
+    vv.addEventListener("resize", syncViewport);
+    return () => {
+      vv.removeEventListener("resize", syncViewport);
+      document.documentElement.style.removeProperty("--visual-viewport-height");
+    };
+  }, []);
+
   useShortcut({
     id: "panel.restore",
     keys: "escape",
@@ -95,6 +111,7 @@ export function AppShell() {
             "transition-[grid-template-columns] duration-(--dur-fast) ease-out",
         )}
         style={{
+          height: "var(--visual-viewport-height, 100dvh)",
           gridTemplateColumns: panelLeft
             ? `${left}px ${right}px minmax(0,1fr)`
             : `${left}px minmax(0,1fr) ${right}px`,

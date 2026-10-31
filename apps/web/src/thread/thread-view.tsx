@@ -566,7 +566,7 @@ export function ThreadView({
           live={thread.spawnedBy !== undefined}
         />
       </OrchestratorStreamProvider>
-      <div className="mx-auto w-full max-w-(--thread-max-width) shrink-0 px-6 @max-sm:px-3">
+      <div className="mx-auto w-full max-w-(--thread-max-width) shrink-0 px-6 @max-sm:px-3 in-data-[composer-writing=true]:max-sm:hidden">
         {/* A worker opens on its catch-up instead, whose words send nothing to it. */}
         {thread.role === "orchestrator" && <BriefingPlaceholder thread={thread} />}
         {thread.spawnedBy === undefined && <RecapCard threadId={threadId} focused={focused} />}
@@ -597,7 +597,7 @@ export function ThreadView({
           digests={stream.plan.digests}
         />
       )}
-      {thread.role === "orchestrator" && (
+      {thread.role === "orchestrator" && !isMobile && (
         <AskStack workspaceId={thread.workspaceId} composerThreadId={thread.id} focused={focused} />
       )}
       <TurnCompleteSheen key={threadId} status={status}>

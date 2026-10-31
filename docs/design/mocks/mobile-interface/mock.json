@@ -3,13 +3,18 @@
   "slug": "mobile-interface",
   "status": "approved",
   "template": "options",
-  "current": 1,
-  "approved": 1,
+  "current": 2,
+  "approved": 2,
   "approvedDirection": "A Sheet",
   "versions": [
     {
       "n": 1,
       "file": "v1.html",
+      "created": "2026-10-31"
+    },
+    {
+      "n": 2,
+      "file": "v2.html",
       "created": "2026-10-31"
     }
   ],
@@ -20,22 +25,6 @@
       "shots": {
         "dark": "shots/a-sheet-dark.png",
         "light": "shots/a-sheet-light.png"
-      }
-    },
-    {
-      "name": "B Tabbar",
-      "board": "b-tabbar",
-      "shots": {
-        "dark": "shots/b-tabbar-dark.png",
-        "light": "shots/b-tabbar-light.png"
-      }
-    },
-    {
-      "name": "C Pill",
-      "board": "c-pill",
-      "shots": {
-        "dark": "shots/c-pill-dark.png",
-        "light": "shots/c-pill-light.png"
       }
     }
   ]

@@ -983,6 +983,14 @@ export function Composer({ threadId, focused }: { threadId: ThreadId; focused: b
     </Hint>
   );
 
+  useEffect(() => {
+    const pane = surfaceRef.current?.closest<HTMLElement>("[data-pane-root]");
+    if (!pane) return;
+    if (isMobile && fieldFocused) pane.setAttribute("data-composer-writing", "true");
+    else pane.removeAttribute("data-composer-writing");
+    return () => pane.removeAttribute("data-composer-writing");
+  }, [isMobile, fieldFocused]);
+
   const textInput = (
     <div className={cn("relative", isMobile && "min-w-0 flex-1")}>
       {partialInline && <DictationMirror ref={mirrorRef} text={text} partial={dictation.partial} />}
@@ -1038,7 +1046,7 @@ export function Composer({ threadId, focused }: { threadId: ThreadId; focused: b
         }
         className={cn(
           isMobile
-            ? "relative block max-h-32 min-h-8 w-full resize-none bg-transparent px-1.5 py-1.5 text-sm leading-snug outline-none field-sizing-content placeholder:text-muted-foreground"
+            ? "relative block max-h-24 min-h-8 w-full resize-none bg-transparent px-1.5 py-1.5 text-sm leading-snug outline-none field-sizing-content placeholder:text-muted-foreground"
             : cn(SLAB_TEXTAREA, "relative"),
         )}
         onFocus={(event) => {

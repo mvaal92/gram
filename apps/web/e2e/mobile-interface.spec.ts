@@ -2,6 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
+import { pressFirstWorkspaceKey } from "./thread-row";
+
 const MOCK_SETTINGS_KEY = "gram.mock.settings";
 const MEDIA_DIR = process.env["GRAM_MOBILE_MEDIA_DIR"];
 
@@ -39,7 +41,7 @@ const startPhone = async (page: Page, mode: "dark" | "light" = "dark") => {
   await page.goto("/t/t-flaky");
   await page.getByLabel("Message", { exact: true }).waitFor();
   const made = await page.evaluate(() => window.gramMock!.simulateOneThread());
-  await page.keyboard.press("ControlOrMeta+1");
+  await pressFirstWorkspaceKey(page);
   await expect(page).toHaveURL(new RegExp(`/t/${made.orchestratorThreadId}$`));
   await expect(page.getByTestId("feature-card").first()).toBeVisible();
   return made;
@@ -60,7 +62,7 @@ test("on a 390 × 844 phone, the composer shows only +, input and Post, and Show
   const show = page.getByTestId("shell-titlebar").getByTestId("overview-show");
   const toolbar = page.getByTestId("composer-toolbar");
 
-  // Minimal bottom chat bar: only +, the Message input, and Send/Queue. No inline pickers or context ring.
+  // Minimal bottom chat bar: only +, the Message input, and Send/Queue. No inline pickers, context ring, or docked AskStack.
   const plus = toolbar.getByTestId("composer-plus");
   await expect(plus).toBeVisible();
   await expect(toolbar.getByLabel("Message", { exact: true })).toBeVisible();
@@ -69,6 +71,7 @@ test("on a 390 × 844 phone, the composer shows only +, input and Post, and Show
   await expect(toolbar.getByRole("combobox", { name: "Mode" })).toHaveCount(0);
   await expect(toolbar.getByTestId("usage-ring")).toHaveCount(0);
   await expect(page.getByTestId("since-you-left")).toHaveCount(0);
+  await expect(page.locator("[data-pane-root]").getByTestId("ask-stack")).toHaveCount(0);
 
   // Hidden by default at 390 px, with no 30 px sliver beside the chat.
   await expect(overview).toHaveCount(0);
@@ -97,6 +100,27 @@ test("on a 390 × 844 phone, the composer shows only +, input and Post, and Show
   }
   await page.keyboard.press("Escape");
   await expect(menu).toBeHidden();
+
+  // Focusing the composer to write sizes the shell to the visual viewport so the chat interface
+  // and the OS keyboard each take about half the screen.
+  const messageInput = toolbar.getByLabel("Message", { exact: true });
+  await messageInput.focus();
+  await expect(page.locator("[data-pane-root]")).toHaveAttribute("data-composer-writing", "true");
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--visual-viewport-height", "422px");
+  });
+  const shellBox = (await page.getByTestId("app-shell").boundingBox())!;
+  expect(shellBox.height).toBe(422);
+  if (MEDIA_DIR) {
+    await messageInput.fill("Ship the minimal mobile composer");
+    await page.screenshot({ path: join(MEDIA_DIR, "mobile-writing-dark.png") });
+    await messageInput.fill("");
+  }
+  await page.evaluate(() => {
+    document.documentElement.style.removeProperty("--visual-viewport-height");
+  });
+  await messageInput.evaluate((el: HTMLElement) => el.blur());
+  await expect(page.locator("[data-pane-root]")).not.toHaveAttribute("data-composer-writing");
 
   // Tapping Show sidebar opens the full OverviewSidebar at 390 px over the main column.
   await show.click();
