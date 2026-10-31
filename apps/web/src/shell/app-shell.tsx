@@ -49,6 +49,9 @@ export function AppShell() {
   useWorkspaceKeys();
   useCarryOverviewFocus(fit.sidebar);
 
+  const sidebarOver = fit.sidebar === "over";
+  const covered = expanded || sidebarOver;
+
   // Settings, a new task and the board live in the chat's place, so going there brings it back.
   useEffect(() => {
     if (!hasThread) setPanelExpanded(false);
@@ -60,8 +63,11 @@ export function AppShell() {
     label: "Restore expanded right panel",
     group: "App",
     // Ahead of Escape's unscoped uses, which belong to the chat hidden behind the panel.
-    focusScope: () => expanded,
-    run: () => setPanelExpanded(false),
+    focusScope: () => covered,
+    run: () => {
+      if (sidebarOver) useLayoutStore.getState().toggleOverview();
+      else setPanelExpanded(false);
+    },
   });
 
   const resizePanel = (width: number) => {
@@ -80,6 +86,7 @@ export function AppShell() {
         data-focus-mode={focusMode}
         data-panel-side={panelLeft ? "left" : "right"}
         data-panel-expanded={expanded}
+        data-sidebar-expanded={sidebarOver || undefined}
         className={cn(
           "grid h-dvh overflow-hidden",
           level === "full" &&
@@ -93,7 +100,12 @@ export function AppShell() {
             : `${left}px minmax(0,1fr) ${right}px`,
         }}
       >
-        <div className="relative order-1 flex min-h-0 min-w-0 flex-col overflow-hidden">
+        <div
+          className={cn(
+            "relative order-1 flex min-h-0 min-w-0 flex-col overflow-hidden",
+            sidebarOver && "z-10",
+          )}
+        >
           {sidebarShown && (fit.sidebar === "compact" ? <OverviewRail /> : <OverviewSidebar />)}
           {fit.sidebar === "full" && (
             <SideResizeHandle
@@ -107,13 +119,19 @@ export function AppShell() {
           )}
         </div>
         <main
-          inert={expanded}
+          inert={covered}
           // Its own stacking context, so nothing layered inside the chat rises over the panel above it.
           className={cn(
             "isolate flex min-h-0 min-w-0 flex-col bg-thread",
             panelLeft ? "order-3" : "order-2",
           )}
-          style={expanded ? { width: Math.max(0, beside - shownWidth) } : undefined}
+          style={
+            sidebarOver
+              ? { width: left }
+              : expanded
+                ? { width: Math.max(0, beside - shownWidth) }
+                : undefined
+          }
         >
           <ShellTitlebar
             sidebarShown={sidebarShown}

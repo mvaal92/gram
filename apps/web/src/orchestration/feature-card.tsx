@@ -227,7 +227,7 @@ function WorkerLine({ worker }: { worker: FeatureCardWorker }) {
         title={STATION_LABELS[worker.station]}
         className={cn("size-1.5 shrink-0 rounded-full", stationDotClass(worker.station, failed))}
       />
-      <span className="flex w-36 min-w-0 shrink-0" title={worker.model}>
+      <span className="flex w-36 min-w-0 shrink-0 @max-sm:w-28" title={worker.model}>
         <WorkerLink threadId={worker.threadId}>{worker.title}</WorkerLink>
       </span>
       <Swap

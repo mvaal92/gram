@@ -557,7 +557,7 @@ export function ThreadView({
           live={thread.spawnedBy !== undefined}
         />
       </OrchestratorStreamProvider>
-      <div className="mx-auto w-full max-w-(--thread-max-width) shrink-0 px-6">
+      <div className="mx-auto w-full max-w-(--thread-max-width) shrink-0 px-6 @max-sm:px-3">
         {/* A worker opens on its catch-up instead, whose words send nothing to it. */}
         {thread.role === "orchestrator" && <BriefingPlaceholder thread={thread} />}
         {thread.spawnedBy === undefined && <RecapCard threadId={threadId} focused={focused} />}
