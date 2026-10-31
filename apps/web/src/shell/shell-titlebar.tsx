@@ -127,7 +127,7 @@ export function ShellTitlebar({
         <span
           aria-hidden
           data-testid="titlebar-divider"
-          className="mx-1 h-4 w-px shrink-0 bg-border"
+          className="mx-1 h-4 w-px shrink-0 bg-border @max-sm/titlebar:hidden"
         />
       )}
       {/* The workspace's workers, tidy-up and pause are Board's and the orchestrator's: a
@@ -141,7 +141,7 @@ export function ShellTitlebar({
           <Foldable level={1} gap={4}>
             <TitlebarTidyUp className="[-webkit-app-region:no-drag]" />
           </Foldable>
-          <TitlebarPause className="[-webkit-app-region:no-drag]" />
+          <TitlebarPause className="[-webkit-app-region:no-drag] @max-sm/titlebar:hidden" />
         </>
       )}
       {/* Narrow, the title needs the room more than the meter needs its words. */}

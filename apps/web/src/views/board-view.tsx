@@ -230,12 +230,14 @@ function FeatureLine({
           <span
             data-testid="rail-summary"
             title={summary}
-            className="line-clamp-2 text-xs text-foreground/80"
+            className="line-clamp-2 text-xs text-foreground/80 @max-md/board:hidden"
           >
             {summary}
           </span>
         )}
-        <span className="truncate text-xs text-muted-foreground">{row.projects.join(" · ")}</span>
+        <span className="truncate text-xs text-muted-foreground @max-md/board:hidden">
+          {row.projects.join(" · ")}
+        </span>
       </div>
       <Track reach={row.reach} />
       {FEATURE_STATIONS.map((station, index) => (

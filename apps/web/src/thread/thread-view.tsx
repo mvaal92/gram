@@ -121,6 +121,7 @@ export function ThreadView({
   // An expanded right panel covers the chat, so nothing in it answers keys: Enter would otherwise
   // approve a request nobody can see, and ⌘Enter send a draft behind the panel.
   const panelExpanded = useLayoutStore((s) => s.panelExpanded);
+  const isMobile = useLayoutStore((s) => s.windowWidth > 0 && s.windowWidth <= 420);
   const focused = paneFocused && !panelExpanded;
   const summary = useThreadsStore((s) => s.byId[threadId]);
   const titlebarThread = useTitlebarThread();
@@ -397,6 +398,7 @@ export function ThreadView({
               inTitlebar && !titleShown && "max-w-none shrink",
               // Wrapped, the first line is as tall as the row, so its chips stay centred on it.
               inTitlebar && "before:-mr-2 before:h-6 before:w-0 before:content-['']",
+              inTitlebar && "@max-sm/titlebar:hidden",
             )}
           >
             <WorkerNowChip thread={thread} />
@@ -471,7 +473,12 @@ export function ThreadView({
         <Hint
           label={statusHint(display, activity)}
           side="bottom"
-          render={<span data-testid="pane-status" className="relative flex shrink-0" />}
+          render={
+            <span
+              data-testid="pane-status"
+              className={cn("relative flex shrink-0", inTitlebar && "@max-sm/titlebar:hidden")}
+            />
+          }
         >
           <Swap swapKey={display.label}>
             <display.icon
@@ -485,14 +492,16 @@ export function ThreadView({
           <RunningCount count={display.running} />
           <span className="sr-only">{display.label}</span>
         </Hint>
-        <TableOfContents
-          chapters={chapters}
-          onJump={jumpToChapter}
-          earlier={earlier}
-          loadingEarlier={loadingEarlier}
-          earlierFailed={earlierFailed}
-          onLoadEarlier={() => void pageEarlier(true)}
-        />
+        {!isMobile && (
+          <TableOfContents
+            chapters={chapters}
+            onJump={jumpToChapter}
+            earlier={earlier}
+            loadingEarlier={loadingEarlier}
+            earlierFailed={earlierFailed}
+            onLoadEarlier={() => void pageEarlier(true)}
+          />
+        )}
         {/* A narrow title bar's folded buttons are this menu's while the header is the bar's. */}
         <ThreadMenu
           threadId={threadId}
@@ -531,7 +540,7 @@ export function ThreadView({
       <WorkerBanner thread={thread} />
       <CatchUpCard thread={thread} />
       <StuckCard thread={thread} />
-      <OrchestratorBanner thread={thread} />
+      {!isMobile && <OrchestratorBanner thread={thread} />}
       {finding && (
         <FindBar threadId={threadId} onReveal={reveal} onClose={() => setFinding(false)} />
       )}
@@ -581,7 +590,7 @@ export function ThreadView({
       <EditBanner threadId={threadId} />
       <PrStrip threadId={threadId} focused={focused} />
       <SubagentStrip rows={stripLines} onJump={jumpToSubagent} onStop={stopTask} />
-      {stream !== undefined && (
+      {stream !== undefined && !isMobile && (
         <SinceYouLeftCard
           key={`since-you-left:${thread.id}`}
           thread={thread}
@@ -681,7 +690,9 @@ function PaneHeading({
         gestures ? `${title}. Double-click to maximize or restore; drag to swap panes` : undefined
       }
     >
-      <RoleGlyph thread={thread} testId="pane-role" />
+      <span className={cn("inline-flex", !titleShown && "@max-sm/titlebar:hidden")}>
+        <RoleGlyph thread={thread} testId="pane-role" />
+      </span>
       <span className={titleShown ? "truncate" : "sr-only"}>{title}</span>
     </h1>
   );

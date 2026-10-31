@@ -51,13 +51,24 @@ const noHorizontalOverflow = (page: Page, selector: string) =>
     return el !== null && el.scrollWidth <= el.clientWidth + 1;
   }, selector);
 
-test("on a 390 × 844 phone, Show sidebar opens the full overview over the chat and picking a thread closes it", async ({
+test("on a 390 × 844 phone, the composer shows only +, input and Post, and Show sidebar opens the full overview", async ({
   page,
 }) => {
   const made = await startPhone(page);
   const overview = page.getByTestId("overview-sidebar");
   const rail = page.getByTestId("overview-rail");
   const show = page.getByTestId("shell-titlebar").getByTestId("overview-show");
+  const toolbar = page.getByTestId("composer-toolbar");
+
+  // Minimal bottom chat bar: only +, the Message input, and Send/Queue. No inline pickers or context ring.
+  const plus = toolbar.getByTestId("composer-plus");
+  await expect(plus).toBeVisible();
+  await expect(toolbar.getByLabel("Message", { exact: true })).toBeVisible();
+  await expect(toolbar.getByTestId("send-menu-trigger")).toBeVisible();
+  await expect(toolbar.getByRole("combobox", { name: "Model" })).toHaveCount(0);
+  await expect(toolbar.getByRole("combobox", { name: "Mode" })).toHaveCount(0);
+  await expect(toolbar.getByTestId("usage-ring")).toHaveCount(0);
+  await expect(page.getByTestId("since-you-left")).toHaveCount(0);
 
   // Hidden by default at 390 px, with no 30 px sliver beside the chat.
   await expect(overview).toHaveCount(0);
@@ -70,6 +81,22 @@ test("on a 390 × 844 phone, Show sidebar opens the full overview over the chat 
     mkdirSync(MEDIA_DIR, { recursive: true });
     await page.screenshot({ path: join(MEDIA_DIR, "mobile-chat-dark.png") });
   }
+
+  // Tapping + opens the additional options menu (Attach, Commands, Mention, Model, Speed, Effort, Mode).
+  await plus.click();
+  const menu = page.getByTestId("composer-overflow-menu");
+  await expect(menu).toBeVisible();
+  await expect(menu.getByTestId("composer-plus-attach")).toBeVisible();
+  await expect(menu.getByTestId("composer-plus-commands")).toBeVisible();
+  await expect(menu.getByTestId("composer-plus-mention")).toBeVisible();
+  await expect(menu.getByTestId("composer-option-model")).toBeVisible();
+  await expect(menu.getByTestId("composer-option-mode")).toBeVisible();
+
+  if (MEDIA_DIR) {
+    await page.screenshot({ path: join(MEDIA_DIR, "mobile-plus-menu-dark.png") });
+  }
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
 
   // Tapping Show sidebar opens the full OverviewSidebar at 390 px over the main column.
   await show.click();
@@ -105,6 +132,10 @@ test("on a 390 × 844 phone, the Board stacks feature lines and worker chips wit
   if (MEDIA_DIR) {
     mkdirSync(MEDIA_DIR, { recursive: true });
     await page.screenshot({ path: join(MEDIA_DIR, "mobile-chat-light.png") });
+    await page.getByTestId("composer-plus").click();
+    await expect(page.getByTestId("composer-overflow-menu")).toBeVisible();
+    await page.screenshot({ path: join(MEDIA_DIR, "mobile-plus-menu-light.png") });
+    await page.keyboard.press("Escape");
   }
 
   await page

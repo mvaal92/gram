@@ -195,7 +195,7 @@ export function DiffPanel({ threadId }: { threadId: ThreadId }) {
           <div
             role="radiogroup"
             aria-label="Diff view"
-            className="isolate flex"
+            className="isolate flex max-sm:hidden"
             onKeyDown={(event) =>
               radioGroupKeyDown(
                 event,
@@ -257,7 +257,7 @@ export function DiffPanel({ threadId }: { threadId: ThreadId }) {
             scope={scope}
             query={query}
             layout={layout === "split" && splitFits ? "split" : "unified"}
-            tree={treeShown ? (treeBeside ? "beside" : "above") : undefined}
+            tree={treeShown && width >= 420 ? (treeBeside ? "beside" : "above") : undefined}
             panelRef={rootRef}
             {...(pending && pendingTurn === undefined ? { request: pending } : {})}
           />

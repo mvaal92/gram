@@ -166,7 +166,7 @@ function StageLine({ card }: { card: FeatureCard }) {
     <ol
       aria-label={`Stage: ${STATION_LABELS[card.station]}`}
       data-testid="feature-card-stations"
-      className="flex items-center gap-1 text-[11px]"
+      className="flex items-center gap-1 text-[11px] max-sm:hidden"
     >
       {FEATURE_STATIONS.map((station, i) => {
         const count = card.workers.filter((worker) => worker.station === station).length;
@@ -356,7 +356,10 @@ export function FeatureCardView({
         </span>
       </header>
       {summary !== undefined && (
-        <p data-testid="feature-card-summary" className="text-xs text-muted-foreground">
+        <p
+          data-testid="feature-card-summary"
+          className="text-xs text-muted-foreground max-sm:hidden"
+        >
           {summary}
         </p>
       )}

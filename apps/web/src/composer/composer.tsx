@@ -61,6 +61,7 @@ import { useServerSettings } from "@/settings-sync/store";
 import { activityLine, backgroundWorking } from "@/sidebar/status";
 import { useDiffComments, useDiffCommentsStore, withDiffComments } from "@/stores/diff-comments";
 import { useDraftStore } from "@/stores/drafts";
+import { useLayoutStore } from "@/stores/layout";
 import { useSuggestionsStore } from "@/stores/suggestions";
 import { useThreadsStore } from "@/stores/threads";
 import { useThreadDialogs } from "@/thread/thread-dialogs-store";
@@ -170,6 +171,8 @@ export function Composer({ threadId, focused }: { threadId: ThreadId; focused: b
   const newDraftHint = useShortcutHint("composer.sendNewDraft");
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [overflowSub, setOverflowSub] = useState<string | undefined>();
+  const isMobile = useLayoutStore((s) => s.windowWidth > 0 && s.windowWidth <= 420);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const history = usePromptHistory(threadId);
   const status = summary?.status ?? "cold";
@@ -896,13 +899,26 @@ export function Composer({ threadId, focused }: { threadId: ThreadId; focused: b
   );
   const toolbar = useToolbarLayout(blocks);
   const { ref: toolbarRef, labelled, folded } = toolbar;
-  const isFolded = (id: string) => folded.includes(id);
+  const isFolded = (id: string) => isMobile || folded.includes(id);
   const isLabelled = (id: string) => labelled === "all" || labelled.has(id);
   const openFolded = (id: string) => {
     setOverflowOpen(true);
     setOverflowSub(id);
   };
   const foldedPickers: FoldedPicker[] = [
+    ...(isMobile && modelChoices.length > 0
+      ? [
+          {
+            id: "model",
+            label: "Model",
+            icon: model && <AgentIcon agent={model.agent} className="size-3.5" />,
+            value: model?.model,
+            options: modelChoices,
+            onChange: onModel,
+            warning: modelWarning,
+          },
+        ]
+      : []),
     ...(model && isFolded("speed")
       ? [
           {
@@ -922,7 +938,7 @@ export function Composer({ threadId, focused }: { threadId: ThreadId; focused: b
           },
         ]
       : []),
-    ...(isFolded("effort")
+    ...(hasEffort && isFolded("effort")
       ? [
           {
             id: "effort",
@@ -967,17 +983,182 @@ export function Composer({ threadId, focused }: { threadId: ThreadId; focused: b
     </Hint>
   );
 
+  const textInput = (
+    <div className={cn("relative", isMobile && "min-w-0 flex-1")}>
+      {partialInline && <DictationMirror ref={mirrorRef} text={text} partial={dictation.partial} />}
+      {ghost !== undefined && (
+        <div
+          ref={mirrorRef}
+          aria-hidden
+          data-composer-mirror
+          className={cn(GHOST_MIRROR, isMobile && "px-1.5 py-1.5 text-sm leading-snug")}
+        >
+          <span data-testid="composer-ghost">
+            <span className="text-transparent">{text}</span>
+            <span className="text-muted-foreground/70">{ghost.rest}</span>
+          </span>
+          {/* Right after the reply rather than in the toolbar, which a narrow pane leaves no
+              room in: there the keys were cut to a sliver, and the reply read as a draft. */}
+          {/* Kept in the flow while pinned, only hidden, so every measure counts its lines. */}
+          <GhostHint position={ghost.position} count={ghost.count} hidden={hintPinned} />
+        </div>
+      )}
+      {ghost !== undefined && hintPinned && (
+        <div className="pointer-events-none absolute right-2 bottom-1 rounded-sm bg-card px-1">
+          <GhostHint position={ghost.position} count={ghost.count} />
+        </div>
+      )}
+      {ghost !== undefined && (
+        <span id={`suggestion-${threadId}`} className="sr-only">
+          Suggested reply: {ghost.suggestion}. Right Arrow accepts.
+        </span>
+      )}
+      <textarea
+        {...mentions.textareaProps}
+        aria-label="Message"
+        aria-describedby={ghost === undefined ? undefined : `suggestion-${threadId}`}
+        role="combobox"
+        aria-expanded={listOpen}
+        aria-controls={listOpen ? listId : undefined}
+        aria-activedescendant={listOpen ? `${listId}-${listActiveIndex}` : undefined}
+        aria-autocomplete="list"
+        value={text}
+        // Dictation's partial is drawn behind the field from its first character, where the
+        // placeholder sits; cleared from the start, so the first words don't land on it.
+        placeholder={
+          ghost !== undefined || dictation.active
+            ? ""
+            : isMobile
+              ? running
+                ? "Queue a message…"
+                : "Message…"
+              : running
+                ? "Queue a message… (/ for commands, @ for files)"
+                : "Message… (/ for commands, @ for files)"
+        }
+        className={cn(
+          isMobile
+            ? "relative block max-h-32 min-h-8 w-full resize-none bg-transparent px-1.5 py-1.5 text-sm leading-snug outline-none field-sizing-content placeholder:text-muted-foreground"
+            : cn(SLAB_TEXTAREA, "relative"),
+        )}
+        onFocus={(event) => {
+          mentions.textareaProps.onFocus();
+          setFieldFocused(true);
+          trackCaret(event.currentTarget);
+          dictation.prewarm();
+        }}
+        onBlur={() => {
+          mentions.textareaProps.onBlur();
+          setFieldFocused(false);
+        }}
+        onSelect={(event) => {
+          mentions.textareaProps.onSelect(event);
+          trackCaret(event.currentTarget);
+        }}
+        onScroll={(event) => {
+          if (mirrorRef.current) mirrorRef.current.scrollTop = event.currentTarget.scrollTop;
+        }}
+        onCompositionStart={() => setComposing(true)}
+        onCompositionEnd={() => setComposing(false)}
+        onChange={(event) => {
+          setText(event.target.value);
+          typing();
+          dictation.typed();
+          trackCaret(event.target);
+          // What the user types picks the first suggestion it fits, not the one cycled to before.
+          if (!inserting.current && suggestions?.chosen !== undefined) {
+            useSuggestionsStore.getState().choose(threadId, undefined);
+          }
+          // Editing ends ↑/↓ navigation, so the next ↑ starts from the newest prompt again rather
+          // than staying stuck past the oldest.
+          history.reset();
+          setSlashIndex(0);
+          if (event.target.value === "") setSlashDismissed(false);
+          mentions.onChange(event.target.value, event.target.selectionStart);
+        }}
+        onKeyDown={onKeyDown}
+        onPaste={onPaste}
+      />
+    </div>
+  );
+
+  const sendControl = (
+    <ContextMenu>
+      <ContextMenuTrigger data-testid="send-menu-trigger" render={<span className="inline-flex" />}>
+        <PressScale hover={canSend ? 1.05 : undefined}>
+          <Hint
+            label={withHint(sendLabel, sendKey === "enter" ? "↵" : sendHint)}
+            render={
+              <button
+                type="button"
+                aria-label={busy ? "Queue" : "Send"}
+                disabled={!canSend}
+                className={cn(ROUND, busy ? QUEUE_GLYPH : SEND_FILL)}
+                onClick={() => void send()}
+              />
+            }
+          >
+            <Swap swapKey={busy ? "Queue" : "Send"}>
+              {busy ? (
+                <ListPlus aria-hidden className="size-4" />
+              ) : (
+                <ArrowUp aria-hidden className="size-4" strokeWidth={2.25} />
+              )}
+            </Swap>
+          </Hint>
+        </PressScale>
+      </ContextMenuTrigger>
+      <ContextMenuContent data-testid="send-menu" className="[&_svg]:size-3.5">
+        <ContextMenuItem disabled={!canSend} onClick={() => void send()}>
+          {busy ? <ListPlus aria-hidden /> : <ArrowUp aria-hidden />}
+          {busy ? "Queue" : "Send"}
+          <kbd className="ml-auto pl-3 font-mono text-[10px] text-muted-foreground">
+            {sendKey === "enter" ? "↵" : sendHint}
+          </kbd>
+        </ContextMenuItem>
+        {steerable && (
+          <ContextMenuItem disabled={!canSend} onClick={() => void steer()}>
+            <Send aria-hidden />
+            {STEER_LABEL}
+          </ContextMenuItem>
+        )}
+        <ContextMenuItem disabled={!canSend} onClick={() => void send(true)}>
+          <SquarePen aria-hidden />
+          Send and start a new draft
+          <kbd className="ml-auto pl-3 font-mono text-[10px] text-muted-foreground">
+            {newDraftHint}
+          </kbd>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+
+  const statusText = hint ?? (dictation.active ? dictationStatus(dictation.state) : undefined);
+
   return (
     <div
-      className="shrink-0 bg-thread px-3 pt-1 pb-3"
+      className={cn("shrink-0 bg-thread", isMobile ? "px-2.5 pt-1 pb-2" : "px-3 pt-1 pb-3")}
       // Escape discards what dictation heard from anywhere in the composer, the mic button included.
       onKeyDownCapture={dictation.onKeyDownCapture}
     >
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        tabIndex={-1}
+        aria-hidden
+        className="hidden"
+        onChange={(event) => {
+          if (event.target.files) attachments.add(event.target.files);
+          event.target.value = "";
+        }}
+      />
       <SharedSlab
         ref={surfaceRef}
         from={handoff}
         onArrived={() => useSlabHandoff.getState().done()}
         data-surface="composer"
+        data-mobile={isMobile || undefined}
         data-dragging={dragging ? "true" : undefined}
         className={cn(SLAB, "mx-auto max-w-(--thread-max-width)")}
         onDragOver={(event) => event.preventDefault()}
@@ -1012,106 +1193,32 @@ export function Composer({ threadId, focused }: { threadId: ThreadId; focused: b
           onRemove={attachments.remove}
           className="px-3 pt-3"
         />
-        <div className="relative">
-          {partialInline && (
-            <DictationMirror ref={mirrorRef} text={text} partial={dictation.partial} />
-          )}
-          {ghost !== undefined && (
-            <div ref={mirrorRef} aria-hidden data-composer-mirror className={GHOST_MIRROR}>
-              <span data-testid="composer-ghost">
-                <span className="text-transparent">{text}</span>
-                <span className="text-muted-foreground/70">{ghost.rest}</span>
-              </span>
-              {/* Right after the reply rather than in the toolbar, which a narrow pane leaves no
-                  room in: there the keys were cut to a sliver, and the reply read as a draft. */}
-              {/* Kept in the flow while pinned, only hidden, so every measure counts its lines. */}
-              <GhostHint position={ghost.position} count={ghost.count} hidden={hintPinned} />
-            </div>
-          )}
-          {ghost !== undefined && hintPinned && (
-            <div className="pointer-events-none absolute right-2 bottom-1 rounded-sm bg-card px-1">
-              <GhostHint position={ghost.position} count={ghost.count} />
-            </div>
-          )}
-          {ghost !== undefined && (
-            <span id={`suggestion-${threadId}`} className="sr-only">
-              Suggested reply: {ghost.suggestion}. Right Arrow accepts.
-            </span>
-          )}
-          <textarea
-            {...mentions.textareaProps}
-            aria-label="Message"
-            aria-describedby={ghost === undefined ? undefined : `suggestion-${threadId}`}
-            role="combobox"
-            aria-expanded={listOpen}
-            aria-controls={listOpen ? listId : undefined}
-            aria-activedescendant={listOpen ? `${listId}-${listActiveIndex}` : undefined}
-            aria-autocomplete="list"
-            value={text}
-            // Dictation's partial is drawn behind the field from its first character, where the
-            // placeholder sits; cleared from the start, so the first words don't land on it.
-            placeholder={
-              ghost !== undefined || dictation.active
-                ? ""
-                : running
-                  ? "Queue a message… (/ for commands, @ for files)"
-                  : "Message… (/ for commands, @ for files)"
-            }
-            className={cn(SLAB_TEXTAREA, "relative")}
-            onFocus={(event) => {
-              mentions.textareaProps.onFocus();
-              setFieldFocused(true);
-              trackCaret(event.currentTarget);
-              dictation.prewarm();
-            }}
-            onBlur={() => {
-              mentions.textareaProps.onBlur();
-              setFieldFocused(false);
-            }}
-            onSelect={(event) => {
-              mentions.textareaProps.onSelect(event);
-              trackCaret(event.currentTarget);
-            }}
-            onScroll={(event) => {
-              if (mirrorRef.current) mirrorRef.current.scrollTop = event.currentTarget.scrollTop;
-            }}
-            onCompositionStart={() => setComposing(true)}
-            onCompositionEnd={() => setComposing(false)}
-            onChange={(event) => {
-              setText(event.target.value);
-              typing();
-              dictation.typed();
-              trackCaret(event.target);
-              // What the user types picks the first suggestion it fits, not the one cycled to before.
-              if (!inserting.current && suggestions?.chosen !== undefined) {
-                useSuggestionsStore.getState().choose(threadId, undefined);
-              }
-              // Editing ends ↑/↓ navigation, so the next ↑ starts from the newest prompt again rather
-              // than staying stuck past the oldest.
-              history.reset();
-              setSlashIndex(0);
-              if (event.target.value === "") setSlashDismissed(false);
-              mentions.onChange(event.target.value, event.target.selectionStart);
-            }}
-            onKeyDown={onKeyDown}
-            onPaste={onPaste}
-          />
-        </div>
+        {!isMobile && textInput}
         {/* With the caret mid-draft the words can't show where they'll land, so they wait here; and
             here too once they run past the field's cap, where the mirror behind it can't scroll. */}
-        {/* With the caret mid-draft the words can't show where they'll land, so they wait here; and
-            here too once they run past the field's cap. */}
         {dictation.partial !== "" && (!caretAtEnd || (partialInline && hintPinned)) && (
           <DictationStrip partial={dictation.partial} />
         )}
         <DictationError state={dictation.state} />
-        {/* Never wraps: labels give way to glyphs, then pickers fold into "…" (toolbar-layout.ts). */}
+        {isMobile && statusText !== undefined && (
+          <span
+            aria-live="polite"
+            className="block truncate px-3 pt-1.5 text-xs text-muted-foreground"
+          >
+            {statusText}
+          </span>
+        )}
+        {/* Never wraps: labels give way to glyphs, then pickers fold into "…" (toolbar-layout.ts).
+            On mobile viewports (`isMobile`), the bar shows only `+`, the text input, and Post. */}
         <div
           ref={toolbarRef}
           data-testid="composer-toolbar"
-          className="flex flex-nowrap items-center gap-1 px-2 pb-2"
+          className={cn(
+            "flex flex-nowrap items-center",
+            isMobile ? "gap-1.5 px-2 py-1.5" : "gap-1 px-2 pb-2",
+          )}
         >
-          <ToolbarBlock id="model" folded={false}>
+          <ToolbarBlock id="model" folded={isMobile}>
             <Picker
               label="Model"
               shortcutId="composer.model"
@@ -1124,6 +1231,11 @@ export function Composer({ threadId, focused }: { threadId: ThreadId; focused: b
               warning={modelWarning}
               onOpen={refreshModels}
               labelled={isLabelled("model")}
+              folded={isMobile}
+              onFoldedOpen={() => {
+                refreshModels();
+                openFolded("model");
+              }}
               search={
                 model && {
                   rowIcon: <AgentIcon agent={model.agent} className="size-3.5" />,
@@ -1182,16 +1294,38 @@ export function Composer({ threadId, focused }: { threadId: ThreadId; focused: b
               onChange={onMode}
             />
           </ToolbarBlock>
-          {folded.length > 0 && (
+          {(isMobile || folded.length > 0) && (
             <ToolbarOverflow
+              plus={isMobile}
               pickers={foldedPickers}
               steer={
                 showSteer && isFolded("steer")
                   ? { run: () => void steer(), disabled: !canSend, label: STEER_LABEL }
                   : undefined
               }
+              actions={
+                isMobile
+                  ? {
+                      onAttach: () => fileInputRef.current?.click(),
+                      onCommands: () => {
+                        setText("/");
+                        setSlashDismissed(false);
+                        requestAnimationFrame(() => fieldRef.current?.focus());
+                      },
+                      onMention: () => {
+                        const prefix = text === "" || text.endsWith(" ") ? text : `${text} `;
+                        const next = `${prefix}@`;
+                        setText(next);
+                        mentions.onChange(next, next.length);
+                        requestAnimationFrame(() => fieldRef.current?.focus());
+                      },
+                      onStop: busy || background ? () => void api.interrupt(threadId) : undefined,
+                    }
+                  : undefined
+              }
               open={overflowOpen}
               onOpenChange={(next) => {
+                if (next && isMobile) refreshModels();
                 setOverflowOpen(next);
                 if (!next) setOverflowSub(undefined);
               }}
@@ -1199,112 +1333,71 @@ export function Composer({ threadId, focused }: { threadId: ThreadId; focused: b
               onOpenSubChange={setOverflowSub}
             />
           )}
-          <div data-toolbar-fixed className="flex shrink-0 empty:hidden">
-            <StashMenu
-              threadId={threadId}
-              onRestore={(saved) => void restore(saved)}
-              onError={flash}
-              keep={attachments.keep}
-            />
-          </div>
-          <span
-            aria-live="polite"
-            className="min-w-0 flex-1 truncate px-1 text-xs text-muted-foreground"
-          >
-            {hint ?? (dictation.active ? dictationStatus(dictation.state) : undefined)}
-          </span>
-          {/* Folded, Steer lives in "…" alone: unlike a picker it has no shortcut to keep mounted. */}
-          {showSteer && !isFolded("steer") && (
-            <ToolbarBlock
-              id="steer"
-              folded={false}
-              className={steerArrives ? "gram-swap" : undefined}
-            >
-              {steerButton}
-            </ToolbarBlock>
-          )}
-          <div data-toolbar-fixed className="flex shrink-0 items-center gap-1.5">
-            {dictation.available && (
-              <DictationButton
-                state={dictation.state}
-                hint={dictateHint}
-                level={dictation.level}
-                onToggle={dictation.toggle}
-              />
-            )}
-            <PendingRestart threadId={threadId} />
-            <ContextRing threadId={threadId} countUp={focused} />
-            {/* Stop opens beside Send as a turn starts and folds away as it ends, so Send slides over
-                rather than jumping. */}
-            <SlotPresence shown={busy || background} gap={6}>
-              <Hint
-                label={background ? "Stop the background agents" : "Stop"}
-                render={
-                  <button
-                    type="button"
-                    aria-label="Stop"
-                    className={cn(ROUND, STOP_OUTLINE)}
-                    onClick={() => void api.interrupt(threadId)}
+          {isMobile ? (
+            <>
+              {textInput}
+              {sendControl}
+            </>
+          ) : (
+            <>
+              <div data-toolbar-fixed className="flex shrink-0 empty:hidden">
+                <StashMenu
+                  threadId={threadId}
+                  onRestore={(saved) => void restore(saved)}
+                  onError={flash}
+                  keep={attachments.keep}
+                />
+              </div>
+              <span
+                aria-live="polite"
+                className="min-w-0 flex-1 truncate px-1 text-xs text-muted-foreground"
+              >
+                {statusText}
+              </span>
+              {/* Folded, Steer lives in "…" alone: unlike a picker it has no shortcut to keep mounted. */}
+              {showSteer && !isFolded("steer") && (
+                <ToolbarBlock
+                  id="steer"
+                  folded={false}
+                  className={steerArrives ? "gram-swap" : undefined}
+                >
+                  {steerButton}
+                </ToolbarBlock>
+              )}
+              <div data-toolbar-fixed className="flex shrink-0 items-center gap-1.5">
+                {dictation.available && (
+                  <DictationButton
+                    state={dictation.state}
+                    hint={dictateHint}
+                    level={dictation.level}
+                    onToggle={dictation.toggle}
                   />
-                }
-              >
-                <Square aria-hidden className="size-2.5 fill-current" />
-              </Hint>
-            </SlotPresence>
-            {/* Right-click for the other ways to send: steer into the running turn, or send and
-                start a new draft. */}
-            <ContextMenu>
-              <ContextMenuTrigger
-                data-testid="send-menu-trigger"
-                render={<span className="inline-flex" />}
-              >
-                <PressScale hover={canSend ? 1.05 : undefined}>
+                )}
+                <PendingRestart threadId={threadId} />
+                <ContextRing threadId={threadId} countUp={focused} />
+                {/* Stop opens beside Send as a turn starts and folds away as it ends, so Send slides over
+                    rather than jumping. */}
+                <SlotPresence shown={busy || background} gap={6}>
                   <Hint
-                    label={withHint(sendLabel, sendKey === "enter" ? "↵" : sendHint)}
+                    label={background ? "Stop the background agents" : "Stop"}
                     render={
                       <button
                         type="button"
-                        aria-label={busy ? "Queue" : "Send"}
-                        disabled={!canSend}
-                        className={cn(ROUND, busy ? QUEUE_GLYPH : SEND_FILL)}
-                        onClick={() => void send()}
+                        aria-label="Stop"
+                        className={cn(ROUND, STOP_OUTLINE)}
+                        onClick={() => void api.interrupt(threadId)}
                       />
                     }
                   >
-                    <Swap swapKey={busy ? "Queue" : "Send"}>
-                      {busy ? (
-                        <ListPlus aria-hidden className="size-4" />
-                      ) : (
-                        <ArrowUp aria-hidden className="size-4" strokeWidth={2.25} />
-                      )}
-                    </Swap>
+                    <Square aria-hidden className="size-2.5 fill-current" />
                   </Hint>
-                </PressScale>
-              </ContextMenuTrigger>
-              <ContextMenuContent data-testid="send-menu" className="[&_svg]:size-3.5">
-                <ContextMenuItem disabled={!canSend} onClick={() => void send()}>
-                  {busy ? <ListPlus aria-hidden /> : <ArrowUp aria-hidden />}
-                  {busy ? "Queue" : "Send"}
-                  <kbd className="ml-auto pl-3 font-mono text-[10px] text-muted-foreground">
-                    {sendKey === "enter" ? "↵" : sendHint}
-                  </kbd>
-                </ContextMenuItem>
-                {steerable && (
-                  <ContextMenuItem disabled={!canSend} onClick={() => void steer()}>
-                    <Send aria-hidden />
-                    {STEER_LABEL}
-                  </ContextMenuItem>
-                )}
-                <ContextMenuItem disabled={!canSend} onClick={() => void send(true)}>
-                  <SquarePen aria-hidden />
-                  Send and start a new draft
-                  <kbd className="ml-auto pl-3 font-mono text-[10px] text-muted-foreground">
-                    {newDraftHint}
-                  </kbd>
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-          </div>
+                </SlotPresence>
+                {/* Right-click for the other ways to send: steer into the running turn, or send and
+                    start a new draft. */}
+                {sendControl}
+              </div>
+            </>
+          )}
         </div>
       </SharedSlab>
     </div>

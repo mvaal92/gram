@@ -129,7 +129,7 @@ export function fitShell(input: ShellFitInput): ShellFit {
     ? input.panelOpen
     : input.panelPeek || (reviewsTab && input.panelOpen);
   const sidebarRoom = SIDEBAR_WIDTH.min <= room;
-  const phoneRoom = input.windowWidth > 0 && room <= 32;
+  const phoneRoom = input.windowWidth > 0 && room < 40;
 
   // The sidebar is the overview: open, its compact rail, or hidden, with automatic open on wide
   // windows and compact below. Short of room it steps aside, unless it was picked Open, which keeps

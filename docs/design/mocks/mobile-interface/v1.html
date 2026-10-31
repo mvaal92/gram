@@ -262,43 +262,32 @@
 
       .m-composer {
         display: flex;
-        flex-direction: column;
-        gap: 6px;
-        padding: 10px 10px 8px 12px;
-        border-radius: 20px;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 999px;
         border: 1px solid var(--border-subtle);
         background: var(--surface-3);
+      }
+      .m-composer .plus-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        border: 0;
+        background: var(--surface-hover);
+        color: var(--fg-muted);
+        display: grid;
+        place-items: center;
+        flex: none;
+        cursor: pointer;
       }
       .m-composer-input {
         color: var(--fg-subtle);
         font-size: var(--text-sm);
-        min-height: 22px;
+        flex: 1;
+        min-width: 0;
       }
-      .m-composer-bar {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        font-size: var(--text-xs);
-        color: var(--fg-muted);
-      }
-      .m-composer-bar .chip-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        height: 24px;
-        padding: 0 6px;
-        border: 0;
-        border-radius: var(--radius-sm);
-        background: none;
-        color: var(--fg-muted);
-        font: inherit;
-        cursor: pointer;
-      }
-      .m-composer-bar .chip-btn:hover {
-        background: var(--surface-hover);
-        color: var(--fg);
-      }
-      .m-composer-bar .send {
+      .m-composer .send {
         margin-left: auto;
         width: 28px;
         height: 28px;
@@ -308,6 +297,7 @@
         color: var(--on-accent);
         display: grid;
         place-items: center;
+        flex: none;
         cursor: pointer;
       }
 
@@ -732,18 +722,13 @@
                 </section>
 
                 <div class="m-composer">
-                  <div class="m-composer-input">Message… (/ for commands, @ for files)</div>
-                  <div class="m-composer-bar">
-                    <button class="chip-btn" type="button">
-                      <i data-icon="sparkle"></i>Claude Sonnet
-                    </button>
-                    <button class="chip-btn" type="button">
-                      <i data-icon="more"></i>
-                    </button>
-                    <button class="send" type="button" aria-label="Send">
-                      <i data-icon="up"></i>
-                    </button>
-                  </div>
+                  <button class="plus-btn" type="button" aria-label="Composer options">
+                    <i data-icon="plus"></i>
+                  </button>
+                  <div class="m-composer-input">Message…</div>
+                  <button class="send" type="button" aria-label="Send">
+                    <i data-icon="up"></i>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1001,13 +986,13 @@
                 </section>
 
                 <div class="m-composer">
+                  <button class="plus-btn" type="button" aria-label="Composer options">
+                    <i data-icon="plus"></i>
+                  </button>
                   <div class="m-composer-input">Message…</div>
-                  <div class="m-composer-bar">
-                    <button class="chip-btn" type="button">Claude Sonnet</button>
-                    <button class="send" type="button" aria-label="Send">
-                      <i data-icon="up"></i>
-                    </button>
-                  </div>
+                  <button class="send" type="button" aria-label="Send">
+                    <i data-icon="up"></i>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1067,13 +1052,13 @@
 
               <div class="m-dock">
                 <div class="m-composer">
+                  <button class="plus-btn" type="button" aria-label="Composer options">
+                    <i data-icon="plus"></i>
+                  </button>
                   <div class="m-composer-input">Message…</div>
-                  <div class="m-composer-bar">
-                    <button class="chip-btn" type="button">Claude Sonnet</button>
-                    <button class="send" type="button" aria-label="Send">
-                      <i data-icon="up"></i>
-                    </button>
-                  </div>
+                  <button class="send" type="button" aria-label="Send">
+                    <i data-icon="up"></i>
+                  </button>
                 </div>
               </div>
             </div>

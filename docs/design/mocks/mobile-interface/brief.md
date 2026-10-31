@@ -26,7 +26,8 @@ Overview sidebar, the Board, or the Right Panel.
 Per direction, at 390 × 844:
 
 - The orchestrator chat with a live feature card, the Ask Stack (an approval and a worker
-  question), and the rounder composer.
+  question), and a minimal single-row bottom chat bar with only `+` (for model, mode, effort,
+  speed, attachments, `/` commands and `@` mentions), the message input, and the Post/Send button.
 - How the user reaches the **Overview** (Needs you pill, Orchestrators with Gram and `[Workspace]`,
   live workers, Solo threads, and 24-hour times such as `17:05` and `09:42`).
 - How the **Board** lays out features and their stations on a 390 px screen without horizontal

@@ -6,9 +6,11 @@
 
 `v1.html`, direction **A Sheet** (board `#a-sheet`). The build must match its states at 390 × 844:
 
-- **chat**: the single top title bar (`ShellTitlebar`), the transcript with 12 px horizontal
-  padding (`@max-sm:px-3`), live feature cards whose worker titles shrink cleanly, the Ask Stack
-  docked above the composer, and the composer toolbar folding lesser pickers into `…`.
+- **chat**: the single top title bar (`ShellTitlebar`) with secondary badges hidden, the transcript
+  with 12 px horizontal padding (`@max-sm:px-3`), minimal live feature cards, the Ask Stack docked
+  above the composer, and a single-row minimal composer showing only `+` (`composer-plus`), the
+  message input, and the Post/Send button (opening `+` reveals attachments, `/` commands, `@`
+  mentions, Model, Speed, Effort and Mode).
 - **overview**: tapping **Show sidebar** (`[data-testid="overview-show"]`) or pressing `⌘B` on a
   phone viewport (`windowWidth < 420`) opens the full `OverviewSidebar` over `<main>` (`sidebar:
   "over"`, `sidebarWidth: windowWidth`), rather than crushing the compact rail into a 30 px strip.
