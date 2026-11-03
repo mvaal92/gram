@@ -204,3 +204,130 @@ test("on a 390 × 844 phone, the Board stacks feature lines and worker chips wit
     await page.screenshot({ path: join(MEDIA_DIR, "mobile-panel-light.png") });
   }
 });
+
+test("Settings → General → Phone access displays Tailscale readiness states, renders a QR code for pairing, and renames/revokes paired devices", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "gram.theme",
+      JSON.stringify({
+        state: { mode: "dark", palette: "neutral-dark", motion: "off" },
+      }),
+    );
+    sessionStorage.setItem(
+      "gram.mock.settings",
+      JSON.stringify({ onboarding: { welcomeSeen: true }, appearance: { motion: "off" } }),
+    );
+    window.gramMockRemoteStatus = {
+      enabled: true,
+      origin: "https://macbook.tail123.ts.net:9443",
+      port: 4317,
+      tailscale: {
+        state: "ready",
+        version: "1.76.1",
+        dnsName: "macbook.tail123.ts.net",
+        tailnetName: "tail123.ts.net",
+        suggestedOrigin: "https://macbook.tail123.ts.net:9443",
+        configuredOrigin: "https://macbook.tail123.ts.net:9443",
+        serveConfigured: true,
+        funnelEnabled: false,
+        loopbackPort: 4317,
+        serveCommand: "tailscale serve --bg --https=9443 http://127.0.0.1:4317",
+        launchCommand: "GRAM_REMOTE_ORIGIN=https://macbook.tail123.ts.net:9443",
+        message: "Ready on https://macbook.tail123.ts.net:9443 over your private tailnet.",
+      },
+      devices: [
+        {
+          id: "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+          name: "iPhone",
+          createdAt: Date.UTC(2026, 10, 3, 18, 15),
+          lastSeenAt: Date.UTC(2026, 10, 3, 19, 42),
+          expiresAt: Date.UTC(2027, 10, 3, 18, 15),
+        },
+        {
+          id: "f0e9d8c7b6a543211029384756abcdef",
+          name: "Android phone",
+          createdAt: Date.UTC(2026, 10, 2, 9, 10),
+          lastSeenAt: Date.UTC(2026, 10, 3, 14, 5),
+          expiresAt: Date.UTC(2027, 10, 2, 9, 10),
+        },
+      ],
+    };
+    window.gramMockPairInvitation = {
+      url: "https://macbook.tail123.ts.net:9443/remote/connect#pair=" + "a1b2c3d4".repeat(8),
+      expiresAt: Date.UTC(2026, 10, 3, 20, 30),
+    };
+  });
+
+  await page.goto("/settings/general");
+  const statusCard = page.getByTestId("tailscale-status-card");
+  await expect(statusCard).toBeVisible();
+  await expect(page.getByTestId("tailscale-state-badge")).toHaveText("Ready");
+  await expect(page.getByTestId("tailscale-status-message")).toContainText(
+    "Ready on https://macbook.tail123.ts.net:9443",
+  );
+
+  // Show QR code mints and renders the SVG QR code and 24-hour expiry time.
+  await page.getByTestId("pair-phone-qr-button").click();
+  const qrBox = page.getByTestId("pair-phone-qr");
+  await expect(qrBox).toBeVisible();
+  await expect(qrBox.getByRole("img", { name: "Phone pairing QR code" })).toBeVisible();
+  await expect(page.getByTestId("pair-phone-status")).toHaveText(
+    /^Pairing link copied — valid until \d{2}:\d{2}\.$/,
+  );
+
+  // Paired devices list shows both devices with 24-hour last-seen times.
+  const rows = page.getByTestId("paired-device-row");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first().getByTestId("paired-device-name")).toHaveText("iPhone");
+  await expect(rows.first().getByTestId("paired-device-times")).toHaveText(/Last seen \d{2}:\d{2}/);
+
+  if (MEDIA_DIR) {
+    mkdirSync(MEDIA_DIR, { recursive: true });
+    await statusCard.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(MEDIA_DIR, "tailscale-settings-qr-dark.png") });
+  }
+
+  // Rename the first device.
+  await rows.first().getByTestId("paired-device-rename").click();
+  const input = rows.first().getByTestId("paired-device-name-input");
+  await input.fill("iPhone 16 Pro");
+  await rows.first().getByTestId("paired-device-save-name").click();
+  await expect(rows.first().getByTestId("paired-device-name")).toHaveText("iPhone 16 Pro");
+
+  // Revoke the second device.
+  await rows.nth(1).getByTestId("paired-device-revoke").click();
+  await expect(rows).toHaveCount(1);
+
+  // Also verify the notConfigured state guidance when Tailscale is installed but GRAM_REMOTE_ORIGIN is off.
+  await page.evaluate(() => {
+    window.gramMockRemoteStatus = {
+      enabled: false,
+      origin: null,
+      port: 4317,
+      tailscale: {
+        state: "notConfigured",
+        version: "1.76.1",
+        dnsName: "macbook.tail123.ts.net",
+        tailnetName: "tail123.ts.net",
+        suggestedOrigin: "https://macbook.tail123.ts.net:9443",
+        serveConfigured: false,
+        funnelEnabled: false,
+        loopbackPort: 4317,
+        serveCommand: "tailscale serve --bg --https=9443 http://127.0.0.1:4317",
+        launchCommand: "GRAM_REMOTE_ORIGIN=https://macbook.tail123.ts.net:9443",
+        message:
+          "Phone access is off by default. Start Gram with GRAM_REMOTE_ORIGIN=https://macbook.tail123.ts.net:9443 and forward with tailscale serve --bg --https=9443 http://127.0.0.1:4317.",
+      },
+      devices: [],
+    };
+  });
+  await statusCard.getByRole("button", { name: "Re-check Tailscale" }).click();
+  await expect(page.getByTestId("tailscale-state-badge")).toHaveText("Off (opt-in)");
+  await expect(statusCard).toContainText("tailscale serve --bg --https=9443 http://127.0.0.1:4317");
+  if (MEDIA_DIR) {
+    await page.screenshot({ path: join(MEDIA_DIR, "tailscale-settings-optin-dark.png") });
+  }
+});
