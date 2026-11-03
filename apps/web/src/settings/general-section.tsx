@@ -23,6 +23,7 @@ import { OVERVIEW_OPEN_FROM, useLayoutStore } from "@/stores/layout";
 import { branchPrefixSetting } from "./branch-prefix";
 import { GENERAL_DEFAULTS, resetFor } from "./defaults";
 import { OptionGroup, rowInputCls, SettingRow, Toggle } from "./fields";
+import { PhoneAccessSettings } from "./phone-access-section";
 import { SettingsGroup } from "./settings-group";
 import { useSaveSettings } from "./use-save-settings";
 
@@ -275,6 +276,7 @@ export function GeneralSection() {
           />
         </SettingRow>
       </SettingsGroup>
+      <PhoneAccessSettings />
       <WindowSettings />
     </div>
   );

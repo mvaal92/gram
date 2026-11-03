@@ -102,8 +102,8 @@ export type ShellFitInput = Omit<ShellContext, "page"> &
 
 /** How the shell lays the side panels out in the room it has. */
 export interface ShellFit {
-  /** `compact` is the overview's rail, `OVERVIEW_RAIL_WIDTH` wide. */
-  sidebar: "full" | "compact" | "none";
+  /** `compact` is the overview's rail, `OVERVIEW_RAIL_WIDTH` wide; `over` covers the chat on a phone. */
+  sidebar: "full" | "compact" | "over" | "none";
   /** The sidebar's column; the stored width when there is room for it. */
   sidebarWidth: number;
   /** `side` beside the chat, `over` it (expanded), or not shown. */
@@ -129,6 +129,7 @@ export function fitShell(input: ShellFitInput): ShellFit {
     ? input.panelOpen
     : input.panelPeek || (reviewsTab && input.panelOpen);
   const sidebarRoom = SIDEBAR_WIDTH.min <= room;
+  const phoneRoom = input.windowWidth > 0 && room < 40;
 
   // The sidebar is the overview: open, its compact rail, or hidden, with automatic open on wide
   // windows and compact below. Short of room it steps aside, unless it was picked Open, which keeps
@@ -149,19 +150,31 @@ export function fitShell(input: ShellFitInput): ShellFit {
   const railWidth = kept ? Math.max(0, Math.min(OVERVIEW_RAIL_WIDTH, room)) : OVERVIEW_RAIL_WIDTH;
   const fits = keptOpen || (keptCompact ? OVERVIEW_RAIL_WIDTH <= room : sidebarRoom);
   if (sidebar !== "none" && !fits) sidebar = "none";
+  // On a phone viewport where not even a 32 px strip fits beside the chat, an explicitly shown
+  // overview opens full-width over the chat rather than crushing into a 30 px sliver.
+  if (sidebar !== "none" && keptOpen && phoneRoom) sidebar = "over";
   const panelRoom =
+    sidebar !== "over" &&
     (sidebar === "full" ? SIDEBAR_WIDTH.min : sidebar === "compact" ? OVERVIEW_RAIL_WIDTH : 0) +
       PANEL_WIDTH.min <=
-    room;
+      room;
   const panel: ShellFit["panel"] =
-    input.focusMode || !open ? "none" : input.panelExpanded ? "over" : panelRoom ? "side" : "none";
+    input.focusMode || !open || sidebar === "over"
+      ? "none"
+      : input.panelExpanded
+        ? "over"
+        : panelRoom
+          ? "side"
+          : "none";
 
   const sidebarWidth =
     sidebar === "none"
       ? 0
-      : sidebar === "compact"
-        ? railWidth
-        : shrunkSidebar(panel === "side" ? room - PANEL_WIDTH.min : room);
+      : sidebar === "over"
+        ? input.windowWidth
+        : sidebar === "compact"
+          ? railWidth
+          : shrunkSidebar(panel === "side" ? room - PANEL_WIDTH.min : room);
   const beside = Math.max(0, input.windowWidth - sidebarWidth);
   const panelWidth =
     panel === "side"
@@ -893,7 +906,14 @@ export const useLayoutStore = create<LayoutState>()(
         closePalette: () => set({ paletteOpen: false, paletteQuery: "", paletteScope: undefined }),
         setOverlayOpen: (overlayOpen) => set({ overlayOpen }),
         setPreset: (preset) => update((grid) => withPreset(grid, preset)),
-        openThread: (threadId) => update((grid) => openThreadIn(grid, threadId)),
+        openThread: (threadId) =>
+          set((s) => ({
+            grid: openThreadIn(s.grid, threadId),
+            ...(s.sidebarPeek ? { sidebarPeek: false } : {}),
+            ...(s.overviewSidebar === "open" && fitShell(s).sidebar === "over"
+              ? { overviewSidebar: "hidden", overviewBeforeHide: "open" }
+              : {}),
+          })),
         openInPane: (threadId, index) => update((grid) => assignPane(grid, index, threadId)),
         closePane: (index) => update((grid) => closePaneAt(grid, index)),
         focusPane: (index) => update((grid) => focusAt(grid, index)),
@@ -946,7 +966,16 @@ export const useLayoutStore = create<LayoutState>()(
                   // A panel opened on the page left goes with it, expanded or not.
                   ...(s.page === page
                     ? {}
-                    : { panelPeek: false, ...(s.panelPeek ? { panelExpanded: false } : {}) }),
+                    : {
+                        panelPeek: false,
+                        ...(s.panelPeek ? { panelExpanded: false } : {}),
+                        ...(s.sidebarPeek && fitShell(s).sidebar === "over"
+                          ? { sidebarPeek: false }
+                          : {}),
+                        ...(s.overviewSidebar === "open" && fitShell(s).sidebar === "over"
+                          ? { overviewSidebar: "hidden", overviewBeforeHide: "open" }
+                          : {}),
+                      }),
                 },
           ),
         revealPanel: (tab, options) =>

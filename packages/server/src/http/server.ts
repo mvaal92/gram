@@ -81,6 +81,10 @@ import {
   pairingCsp,
   pairingDocument,
   REMOTE_PAIR_PATH,
+  REMOTE_STATUS_PATH,
+  REMOTE_RENAME_DEVICE_PATH,
+  REMOTE_REVOKE_DEVICE_PATH,
+  REMOTE_DISCONNECT_PATH,
   SESSION_LIFETIME_MS,
   REMOTE_CONNECT_PATH,
   REMOTE_CLAIM_PATH,
@@ -89,6 +93,7 @@ import {
 import { fileRemoteSessionStore } from "./remote-sessions.ts";
 import { authTarget } from "./auth-target.ts";
 import { authorize, contentSecurityPolicy, makeLaunchToken, tokenCookieName } from "./auth.ts";
+import { liveTailscaleProbe, probeTailscaleStatus } from "../tailscale/status.ts";
 
 /** The per-launch secret carried by the boot URL. */
 export class LaunchToken extends Context.Service<LaunchToken, { readonly token: string }>()(
@@ -111,6 +116,7 @@ export const AuthMiddleware = HttpRouter.middleware(
     const { token } = yield* LaunchToken;
     const config = yield* ServerConfig;
     const mcpTokens = yield* McpTokens;
+    const tailscaleProbe = yield* liveTailscaleProbe;
     const port = serverPort(server);
     const remote =
       config.remoteOrigin === undefined
@@ -127,6 +133,21 @@ export const AuthMiddleware = HttpRouter.middleware(
       "x-content-type-options": "nosniff",
       "referrer-policy": "no-referrer",
     };
+    const readJsonBody = Effect.gen(function* () {
+      const request = yield* HttpServerRequest.HttpServerRequest;
+      const text = yield* request.text.pipe(
+        Effect.provideService(HttpServerRequest.MaxBodySize, ByteSize.bytes(1024)),
+        Effect.catch(() => Effect.succeed("")),
+      );
+      try {
+        const parsed: unknown = JSON.parse(text);
+        return typeof parsed === "object" && parsed !== null
+          ? (parsed as Record<string, unknown>)
+          : undefined;
+      } catch {
+        return undefined;
+      }
+    });
     return (httpEffect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest;
@@ -174,13 +195,22 @@ export const AuthMiddleware = HttpRouter.middleware(
             Number(request.headers["content-length"]) > 64
           )
             return secureResponse(HttpServerResponse.text("forbidden", { status: 403 }));
+          if (remote.isRateLimited())
+            return secureResponse(
+              HttpServerResponse.text("too many pairing attempts", { status: 429 }),
+            );
           const code = yield* request.text.pipe(
             Effect.provideService(HttpServerRequest.MaxBodySize, ByteSize.bytes(64)),
             Effect.catch(() => Effect.succeed("")),
           );
           const session = code.length === 64 ? remote.claim(authRequest, code) : undefined;
           if (session === undefined)
-            return secureResponse(HttpServerResponse.text("pairing refused", { status: 403 }));
+            return secureResponse(
+              HttpServerResponse.text(
+                remote.isRateLimited() ? "too many pairing attempts" : "pairing refused",
+                { status: remote.isRateLimited() ? 429 : 403 },
+              ),
+            );
           const response = yield* HttpServerResponse.text("paired").pipe(
             HttpServerResponse.setCookie(remoteCookieName(port), session, {
               maxAge: SESSION_LIFETIME_MS,
@@ -207,15 +237,84 @@ export const AuthMiddleware = HttpRouter.middleware(
         let response: HttpServerResponse.HttpServerResponse;
         switch (decision.kind) {
           case "pass":
-            response =
-              path === REMOTE_PAIR_PATH
-                ? remote !== undefined &&
-                  request.method === "POST" &&
-                  request.headers["origin"] !== undefined &&
-                  !isRemote
+            if (path === REMOTE_PAIR_PATH) {
+              response =
+                remote !== undefined &&
+                request.method === "POST" &&
+                request.headers["origin"] !== undefined &&
+                !isRemote
                   ? HttpServerResponse.jsonUnsafe(remote.mint())
-                  : HttpServerResponse.text("pairing unavailable", { status: 403 })
-                : yield* httpEffect;
+                  : HttpServerResponse.text("pairing unavailable", { status: 403 });
+            } else if (path === REMOTE_STATUS_PATH) {
+              if (request.method !== "GET" || isRemote) {
+                response = HttpServerResponse.text("forbidden", { status: 403 });
+              } else {
+                const tailscale = yield* probeTailscaleStatus(tailscaleProbe, {
+                  configuredOrigin: config.remoteOrigin,
+                  loopbackPort: port,
+                });
+                response = HttpServerResponse.jsonUnsafe({
+                  enabled: remote !== undefined,
+                  origin: remote?.origin ?? null,
+                  port,
+                  tailscale,
+                  devices: remote?.listDevices() ?? [],
+                });
+              }
+            } else if (path === REMOTE_RENAME_DEVICE_PATH) {
+              if (
+                remote === undefined ||
+                request.method !== "POST" ||
+                request.headers["origin"] === undefined ||
+                isRemote
+              ) {
+                response = HttpServerResponse.text("forbidden", { status: 403 });
+              } else {
+                const body = yield* readJsonBody;
+                const id = typeof body?.["id"] === "string" ? body["id"] : "";
+                const name = typeof body?.["name"] === "string" ? body["name"] : "";
+                const renamed = id !== "" && name !== "" && remote.renameDevice(id, name);
+                response = renamed
+                  ? HttpServerResponse.jsonUnsafe({ devices: remote.listDevices() })
+                  : HttpServerResponse.text("device not found", { status: 404 });
+              }
+            } else if (path === REMOTE_REVOKE_DEVICE_PATH) {
+              if (
+                remote === undefined ||
+                request.method !== "POST" ||
+                request.headers["origin"] === undefined ||
+                isRemote
+              ) {
+                response = HttpServerResponse.text("forbidden", { status: 403 });
+              } else {
+                const body = yield* readJsonBody;
+                const all = body?.["all"] === true;
+                const id = typeof body?.["id"] === "string" ? body["id"] : undefined;
+                const revoked = all
+                  ? remote.revokeDevice(undefined)
+                  : id !== undefined && id !== "" && remote.revokeDevice(id);
+                response = revoked
+                  ? HttpServerResponse.jsonUnsafe({ devices: remote.listDevices() })
+                  : HttpServerResponse.text("device not found", { status: 404 });
+              }
+            } else if (path === REMOTE_DISCONNECT_PATH) {
+              if (remote !== undefined && isRemote && remote.disconnect(authRequest)) {
+                response = yield* HttpServerResponse.text("disconnected").pipe(
+                  HttpServerResponse.setCookie(remoteCookieName(port), "", {
+                    maxAge: 0,
+                    secure: true,
+                    httpOnly: true,
+                    sameSite: "strict",
+                    path: "/",
+                  }),
+                  Effect.orDie,
+                );
+              } else {
+                response = HttpServerResponse.text("forbidden", { status: 403 });
+              }
+            } else {
+              response = yield* httpEffect;
+            }
             break;
           case "boot":
             response = yield* HttpServerResponse.redirect("/", { status: 302 }).pipe(

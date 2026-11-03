@@ -542,6 +542,32 @@ describe("side panels", () => {
     });
   });
 
+  it("opens the full overview over the chat on a 390 px phone viewport, and closes it on navigation", () => {
+    useLayoutStore.setState({ windowWidth: 390, overviewSidebar: undefined });
+    expect(fit()).toMatchObject({ sidebar: "none", sidebarWidth: 0 });
+    s().toggleOverview();
+    expect(s().sidebarPeek).toBe(true);
+    expect(fit()).toMatchObject({ sidebar: "over", sidebarWidth: 390, panel: "none" });
+    // Opening a thread dismisses the phone overview so the chosen thread is visible.
+    s().openThread(B);
+    expect(s().sidebarPeek).toBe(false);
+    expect(fit()).toMatchObject({ sidebar: "none", sidebarWidth: 0 });
+
+    // Navigating to another page (Settings, Usage, New task) also dismisses it.
+    s().toggleOverview();
+    expect(fit()).toMatchObject({ sidebar: "over", sidebarWidth: 390 });
+    s().setShellContext({ windowWidth: 390, threadInView: false, page: "/settings" });
+    expect(s().sidebarPeek).toBe(false);
+    expect(fit()).toMatchObject({ sidebar: "none", sidebarWidth: 0 });
+
+    // An explicit Open overview at 390 px also covers the chat at full width rather than a 30 px strip.
+    s().setOverviewSidebar("open");
+    expect(fit()).toMatchObject({ sidebar: "over", sidebarWidth: 390, panel: "none" });
+    s().openThread(A);
+    expect(s()).toMatchObject({ overviewSidebar: "hidden", overviewBeforeHide: "open" });
+    expect(fit()).toMatchObject({ sidebar: "none", sidebarWidth: 0 });
+  });
+
   it("folds the overview's sections and keeps only the ones it knows", () => {
     s().toggleOverviewSection("solo");
     s().toggleOverviewSection("orchestrators");

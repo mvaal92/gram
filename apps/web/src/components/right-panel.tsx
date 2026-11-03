@@ -127,7 +127,7 @@ export function RightPanel() {
       data-surface="chrome"
       className="flex min-h-0 flex-1 flex-col border-l border-border bg-panel"
     >
-      <div className="h-(--titlebar-height) shrink-0 [-webkit-app-region:drag]" />
+      <div className="h-(--titlebar-height) shrink-0 [-webkit-app-region:drag] max-sm:hidden" />
       <PreviewSuggestionNotice threadId={threadId} />
       <Tabs
         value={tab}

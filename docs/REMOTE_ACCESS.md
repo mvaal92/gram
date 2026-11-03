@@ -124,8 +124,9 @@ data directory you already use (`GRAM_DATA_DIR`, if you set one).
    See Tailscale's [Serve command reference](https://tailscale.com/docs/reference/tailscale-cli/serve)
    and [Serve guide](https://tailscale.com/docs/features/tailscale-serve).
 
-4. From the authenticated **local** Gram window's developer console, create a pairing link
-   with the existing cookie (in development, the Vite proxy forwards only this endpoint):
+4. From the authenticated **local** Gram window, open **Settings → General → Phone access** and
+   click **Show QR code** or **Copy pairing link** (or run this in the developer console, which in
+   development the Vite proxy also forwards):
 
    ```js
    const pairingResponse = await fetch("/remote/pair", {
@@ -136,12 +137,16 @@ data directory you already use (`GRAM_DATA_DIR`, if you set one).
    copy((await pairingResponse.json()).url);
    ```
 
-   `copy` writes the link to your clipboard without printing it. Send it privately to your
-   own phone and open it within 15 minutes. Clipboard history and extensions are inside the
-   trust boundary above; never paste the link into a shared chat or a log. The plain base URL
-   returns 401 before pairing. After pairing, use the base URL or a thread URL; the pairing
-   link can't be reused. Never put a desktop `?boot=` token into the remote URL. A 403
-   "pairing unavailable" means `GRAM_REMOTE_ORIGIN` isn't set for the running server.
+   `copy` writes the link to your clipboard without printing it. Scan the QR code or send the link
+   privately to your own phone and open it within 15 minutes. Clipboard history and extensions are
+   inside the trust boundary above; never paste the link into a shared chat or a log. The plain
+   base URL returns 401 before pairing. After pairing, use the base URL or a thread URL; the
+   pairing link can't be reused, and repeated failed claim attempts are rate-limited (`429`).
+   **Settings → General → Phone access** lists paired devices with their 24-hour last-seen times,
+   rename, and per-device or revoke-all actions; on the phone itself, **Disconnect and forget**
+   revokes that device's session and clears its cookie. Never put a desktop `?boot=` token into the
+   remote URL. A 403 "pairing unavailable" means `GRAM_REMOTE_ORIGIN` isn't set for the running
+   server.
 
 5. Check that the unpaired base URL gets 401, that pairing removes the fragment, and that the
    phone reads an existing thread and reconnects its WebSocket. Only a check from the phone

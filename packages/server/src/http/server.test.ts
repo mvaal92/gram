@@ -979,7 +979,14 @@ layer(testServer("https://device.tail123.ts.net:9443"), { excludeTestServices: t
             403,
           );
           expect(yield* upgradeStatus(port, { host, cookie, origin })).toBe(101);
-          for (const path of ["/remote/pair", "/mcp", `/?boot=${token}`])
+          for (const path of [
+            "/remote/pair",
+            "/remote/status",
+            "/remote/devices/rename",
+            "/remote/devices/revoke",
+            "/mcp",
+            `/?boot=${token}`,
+          ])
             expect((yield* raw(port, { path, headers: { host, cookie, origin } })).status).toBe(
               403,
             );
@@ -994,6 +1001,43 @@ layer(testServer("https://device.tail123.ts.net:9443"), { excludeTestServices: t
               },
             })).status,
           ).toBe(403);
+
+          // Local status lists the paired device; rename, revoke, and remote disconnect work end-to-end.
+          const statusRes = yield* raw(port, {
+            path: "/remote/status",
+            headers: { cookie: localCookie },
+          });
+          expect(statusRes.status).toBe(200);
+          const statusBody = JSON.parse(statusRes.body) as {
+            enabled: boolean;
+            origin: string;
+            devices: Array<{ id: string; name: string }>;
+          };
+          expect(statusBody.enabled).toBe(true);
+          expect(statusBody.origin).toBe(origin);
+          expect(statusBody.devices.length).toBeGreaterThanOrEqual(1);
+          const deviceId = statusBody.devices.at(-1)!.id;
+
+          const renameRes = yield* raw(port, {
+            path: "/remote/devices/rename",
+            method: "POST",
+            headers: { ...localHeaders, "content-type": "application/json" },
+            body: JSON.stringify({ id: deviceId, name: "Work iPhone" }),
+          });
+          expect(renameRes.status).toBe(200);
+          expect(JSON.parse(renameRes.body).devices.at(-1).name).toBe("Work iPhone");
+
+          // Remote self-disconnect clears the cookie and revokes access.
+          const disconnectRes = yield* raw(port, {
+            path: "/remote/disconnect",
+            method: "POST",
+            headers: { host, cookie, origin },
+          });
+          expect(disconnectRes.status).toBe(200);
+          expect(disconnectRes.headers["set-cookie"]?.[0]).toMatch(/Max-Age=0/i);
+          expect((yield* raw(port, { path: "/app.js", headers: { host, cookie } })).status).toBe(
+            401,
+          );
         }),
     );
   },

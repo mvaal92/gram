@@ -23,8 +23,11 @@ const proxy = (port: string): Record<string, ProxyOptions> => {
   // changeOrigin rewrites Host to the server's loopback host:port, which its allowlist requires.
   return {
     "/ws": { target, ws: true, changeOrigin: true },
-    // Local authenticated pairing mint only; never proxy the remote claim bridge via Vite.
+    // Local authenticated pairing mint and device management only; never proxy the remote claim bridge via Vite.
     "/remote/pair": { target, changeOrigin: true },
+    "/remote/status": { target, changeOrigin: true },
+    "/remote/devices/rename": { target, changeOrigin: true },
+    "/remote/devices/revoke": { target, changeOrigin: true },
     "^/\\?boot=": { target, changeOrigin: true },
   };
 };

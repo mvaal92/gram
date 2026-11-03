@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { useWorkspaceAsks } from "@/orchestration/ask-stack";
 import { useOpenWorkspace } from "@/orchestration/home";
 import { useWorkspaces } from "@/orchestration/use-orchestration";
-import { useLayoutStore } from "@/stores/layout";
+import { fitShell, useLayoutStore } from "@/stores/layout";
 import { useThreadsStore } from "@/stores/threads";
 import { threadDisplayTitle } from "@/thread/thread-title";
 import { soloThreads } from "@/views/solo-threads";
@@ -44,6 +44,8 @@ const ITEM = "data-switcher-item";
 export function useSwitchWorkspace(): (workspace: Workspace) => void {
   const open = useOpenWorkspace();
   return (workspace) => {
+    const layout = useLayoutStore.getState();
+    if (fitShell(layout).sidebar === "over") layout.toggleOverview();
     const threadId = workspace.orchestratorThreadId;
     if (threadId !== undefined) {
       const pathname = `/t/${threadId}`;

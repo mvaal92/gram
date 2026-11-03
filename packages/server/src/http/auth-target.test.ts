@@ -11,6 +11,10 @@ const protectedPaths = [
   "/remote/pair",
   "/remote/connect",
   "/remote/claim",
+  "/remote/status",
+  "/remote/devices/rename",
+  "/remote/devices/revoke",
+  "/remote/disconnect",
 ] as const;
 
 const request = (url: string, host: string): AuthRequest => ({

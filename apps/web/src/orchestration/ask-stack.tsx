@@ -373,7 +373,7 @@ function AskItem({
             text={ask.description}
             lines={2}
             testId="ask-description"
-            className="text-xs text-muted-foreground"
+            className="text-xs text-muted-foreground max-sm:hidden"
           />
         )}
         <AskDetails ask={ask} />
@@ -701,7 +701,7 @@ export function AskStack({
                       .openOrchestrator({ workspaceId: w.workspaceId })
                       .then((orchestrator) => open(orchestrator.id));
                   }}
-                  className="truncate rounded-sm px-1 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                  className="truncate rounded-sm px-1 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring max-sm:hidden"
                 >
                   {w.asks.length} in {w.name}
                 </button>

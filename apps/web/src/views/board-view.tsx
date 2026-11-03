@@ -79,7 +79,7 @@ function WorkerChip({
       data-tone={worker.tone}
       // The name's button stretches over the whole chip; the PR and the overlap sit above it.
       className={cn(
-        "relative flex w-full max-w-52 min-w-0 flex-col gap-0.5 rounded-(--radius-md) border border-border bg-card px-2 py-1 text-xs focus-within:ring-2 focus-within:ring-ring hover:border-ring/60",
+        "relative flex w-full max-w-52 min-w-0 flex-col gap-0.5 rounded-(--radius-md) border border-border bg-card px-2 py-1 text-xs focus-within:ring-2 focus-within:ring-ring hover:border-ring/60 @max-md/board:max-w-none",
         worker.tone === "needs" && "border-status-needs/50 bg-status-needs/10",
       )}
     >
@@ -92,6 +92,9 @@ function WorkerChip({
       >
         <tone.icon aria-hidden className={cn("size-3 shrink-0", tone.tone)} />
         <span className="min-w-0 truncate font-medium">{worker.title}</span>
+        <span className="ml-auto hidden shrink-0 text-[11px] font-normal text-muted-foreground @max-md/board:inline">
+          {STATION_LABELS[station]}
+        </span>
       </button>
       <span className="flex min-w-0 items-center gap-1.5 pl-4.5 text-[11px] text-muted-foreground">
         <span data-testid="rail-now" className="min-w-0 truncate">
@@ -133,7 +136,10 @@ function WorkerChip({
 /** The line under the stations: drawn as far as the feature's furthest worker. */
 function Track({ reach }: { reach: number }) {
   return (
-    <div aria-hidden className="relative col-span-5 col-start-2 row-start-1 h-3">
+    <div
+      aria-hidden
+      className="relative col-span-5 col-start-2 row-start-1 h-3 @max-md/board:hidden"
+    >
       <span className="absolute inset-x-[10%] top-[5px] h-0.5 rounded-full bg-border" />
       <span
         className="absolute top-[5px] left-[10%] h-0.5 rounded-full bg-muted-foreground transition-[width] duration-(--dur-base)"
@@ -180,13 +186,13 @@ function FeatureLine({
       data-finished={row.finished || undefined}
       aria-label={row.feature}
       className={cn(
-        "group/line grid gap-x-2 gap-y-1.5 px-4 py-2.5 hover:bg-sidebar-row-hover/50",
+        "group/line grid gap-x-2 gap-y-1.5 px-4 py-2.5 hover:bg-sidebar-row-hover/50 @max-md/board:flex @max-md/board:flex-col @max-md/board:px-3",
         COLUMNS,
         row.finished && "opacity-70",
         place?.className,
       )}
     >
-      <div className="row-span-2 flex min-w-0 flex-col justify-center gap-0.5 pr-2">
+      <div className="row-span-2 flex min-w-0 flex-col justify-center gap-0.5 pr-2 @max-md/board:pr-0">
         <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
           {/* The name opens the feature's sheet; its menu sits beside it. */}
           <button
@@ -224,19 +230,21 @@ function FeatureLine({
           <span
             data-testid="rail-summary"
             title={summary}
-            className="line-clamp-2 text-xs text-foreground/80"
+            className="line-clamp-2 text-xs text-foreground/80 @max-md/board:hidden"
           >
             {summary}
           </span>
         )}
-        <span className="truncate text-xs text-muted-foreground">{row.projects.join(" · ")}</span>
+        <span className="truncate text-xs text-muted-foreground @max-md/board:hidden">
+          {row.projects.join(" · ")}
+        </span>
       </div>
       <Track reach={row.reach} />
       {FEATURE_STATIONS.map((station, index) => (
         <ul
           key={station}
           aria-label={STATION_LABELS[station]}
-          className="row-start-2 flex min-w-0 flex-col items-center gap-1.5"
+          className="row-start-2 flex min-w-0 flex-col items-center gap-1.5 @max-md/board:w-full @max-md/board:items-stretch @max-md/board:empty:hidden"
           style={{ gridColumnStart: index + 2 }}
         >
           {row.cells[station].map((worker) => (
@@ -328,7 +336,7 @@ function RailBoard({ state }: { state: WorkspaceState }) {
       tabIndex={-1}
       data-ask-scope
       data-testid="rail-board"
-      className="flex min-h-0 flex-1 flex-col outline-none"
+      className="@container/board flex min-h-0 flex-1 flex-col outline-none"
     >
       <BoardHeader
         state={state}
@@ -352,7 +360,7 @@ function RailBoard({ state }: { state: WorkspaceState }) {
       <div
         aria-hidden
         className={cn(
-          "grid shrink-0 gap-x-2 border-b border-border px-4 pb-1.5 text-center text-xs text-muted-foreground",
+          "grid shrink-0 gap-x-2 border-b border-border px-4 pb-1.5 text-center text-xs text-muted-foreground @max-md/board:hidden",
           COLUMNS,
         )}
       >

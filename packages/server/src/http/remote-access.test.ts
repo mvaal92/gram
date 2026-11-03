@@ -170,4 +170,82 @@ describe("private browser access", () => {
     expect(pairingDocument).not.toContain("src=");
     expect(pairingCsp).toContain("script-src 'sha256-");
   });
+
+  it("rate-limits repeated failed claim attempts without burning a valid invitation once the window passes", () => {
+    let now = 10_000;
+    const access = createRemoteAccess(ORIGIN, PORT, () => now);
+    const validCode = codeOf(access.mint().url);
+    for (let i = 0; i < 8; i++) {
+      expect(claim(access, "0".repeat(64))).toBeUndefined();
+    }
+    expect(access.isRateLimited()).toBe(true);
+    // Even the valid code is refused while rate-limited, without consuming the invitation.
+    expect(claim(access, validCode)).toBeUndefined();
+    // Advance past the 60s rate-limit window (still within the 15m invitation window).
+    now += 61_000;
+    expect(access.isRateLimited()).toBe(false);
+    expect(claim(access, validCode)).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("lists paired devices, updates lastSeenAt, renames, revokes by id or all, and allows self-disconnect", () => {
+    let now = 5_000;
+    const access = createRemoteAccess(ORIGIN, PORT, () => now);
+    const token1 = claim(access, codeOf(access.mint().url), {
+      headers: {
+        host: HOST,
+        origin: ORIGIN,
+        "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0)",
+      },
+    })!;
+    now = 6_000;
+    const token2 = claim(access, codeOf(access.mint().url), {
+      headers: { host: HOST, origin: ORIGIN, "user-agent": "Mozilla/5.0 (Linux; Android 15)" },
+    })!;
+
+    let devices = access.listDevices();
+    expect(devices).toHaveLength(2);
+    expect(devices[0]).toMatchObject({ name: "iPhone", createdAt: 5_000, lastSeenAt: 5_000 });
+    expect(devices[1]).toMatchObject({
+      name: "Android phone",
+      createdAt: 6_000,
+      lastSeenAt: 6_000,
+    });
+
+    // Authorizing a request updates lastSeenAt.
+    now = 9_500;
+    expect(access.authorize(request({ cookies: { [remoteCookieName(PORT)]: token1 } }))).toEqual({
+      kind: "pass",
+    });
+    devices = access.listDevices();
+    expect(devices[0]!.lastSeenAt).toBe(9_500);
+
+    // Rename device 1.
+    expect(access.renameDevice(devices[0]!.id, "My iPhone 16")).toBe(true);
+    expect(access.listDevices()[0]!.name).toBe("My iPhone 16");
+    expect(access.renameDevice("nonexistent", "Other")).toBe(false);
+
+    // Revoke device 1; device 2 stays authorized.
+    expect(access.revokeDevice(devices[0]!.id)).toBe(true);
+    expect(
+      access.authorize(request({ cookies: { [remoteCookieName(PORT)]: token1 } })),
+    ).toMatchObject({ status: 401 });
+    expect(access.authorize(request({ cookies: { [remoteCookieName(PORT)]: token2 } }))).toEqual({
+      kind: "pass",
+    });
+
+    // Self-disconnect from device 2.
+    expect(
+      access.disconnect(
+        request({
+          method: "POST",
+          url: "/remote/disconnect",
+          cookies: { [remoteCookieName(PORT)]: token2 },
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      access.authorize(request({ cookies: { [remoteCookieName(PORT)]: token2 } })),
+    ).toMatchObject({ status: 401 });
+    expect(access.listDevices()).toHaveLength(0);
+  });
 });

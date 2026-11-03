@@ -695,7 +695,7 @@ export function Transcript({
                     data-flash={flashId === messages[item.index]!.id ? "true" : undefined}
                     ref={virtualizer.measureElement}
                     tabIndex={-1}
-                    className="absolute top-0 left-0 w-full rounded-(--radius-md) px-6 py-2 outline-none transition-[background-color,box-shadow] duration-(--dur-fast) [contain:content] focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset data-[flash=true]:bg-highlight/10 data-[flash=true]:ring-2 data-[flash=true]:ring-highlight/50 data-[flash=true]:ring-inset"
+                    className="absolute top-0 left-0 w-full rounded-(--radius-md) px-6 py-2 outline-none transition-[background-color,box-shadow] duration-(--dur-fast) [contain:content] focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset data-[flash=true]:bg-highlight/10 data-[flash=true]:ring-2 data-[flash=true]:ring-highlight/50 data-[flash=true]:ring-inset @max-sm:px-3"
                     style={{ transform: `translateY(${item.start}px)` }}
                   >
                     <Row
@@ -713,7 +713,7 @@ export function Transcript({
                   <div
                     ref={measureCompacting}
                     // `flow-root` keeps the line's own margins inside what is measured.
-                    className="absolute left-0 flow-root w-full px-6"
+                    className="absolute left-0 flow-root w-full px-6 @max-sm:px-3"
                     style={{ top: virtualizer.getTotalSize() - endRoom }}
                   >
                     <CompactingLine compaction={compaction} />
