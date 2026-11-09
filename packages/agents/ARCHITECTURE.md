@@ -2,8 +2,10 @@
 
 [Up: Gram architecture](../../docs/ARCHITECTURE.md) · [Agent permissions](../../docs/AGENTS_AND_FEATURES.md)
 
-Adapters run the developer's installed Claude Code/Codex CLIs with their own
-logins; explicitly configured gateways remain optional. Codex and Claude Code are the only executable harnesses.
+Adapters run the developer's installed Claude Code, Codex, and Grok CLIs with their own
+logins; explicitly configured gateways remain optional and are Codex-only. The three CLIs are the
+executable harnesses. Grok's process, session, and approval limits are in
+[Grok](../../docs/design/grok-provider.md).
 Shared utilities discover and execute CLIs without choosing authentication.
 This page owns package implementation navigation; permission/support qualification
 belongs to the linked product guide.
@@ -18,6 +20,7 @@ belongs to the linked product guide.
 | [Claude binary](src/claude/binary.ts) | SDK shim/version/auth classification; public exports and Claude-not-found semantics                                                                     |
 | [Claude usage](src/claude/usage.ts)   | Request deduplication, token/context windows, model variants, learned rates and restored/reset costs                                                    |
 | Adapter sessions and shared servers   | Provider protocol, approvals, event ordering/cancel, child/routing ownership and retention; authentication environment filtering stays adapter-specific |
+| [Grok CLI host](src/grok/session.ts)  | Headless `grok` turns, `-s`/`-r` session phase, isolated `GROK_HOME`, and streaming-json events                                                         |
 
 Do not merge resource owners merely because counters look alike. Codex retention
 also covers RPC routing, managed holds and generated gateway files. Preserve held
