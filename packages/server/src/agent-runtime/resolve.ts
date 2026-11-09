@@ -27,7 +27,7 @@ import { DAY_MS } from "../zone-time.ts";
 /** The shortest a release waits after publication before anything offers to install it. */
 export const RELEASE_AGE_MS = DAY_MS;
 
-const AGENTS: ReadonlyArray<RuntimeAgent> = ["claude", "codex"];
+const AGENTS: ReadonlyArray<RuntimeAgent> = ["claude", "codex", "grok"];
 
 /** Gram's managed store, as the managed-runtime service shows it to the resolver. */
 interface ManagedRuntimesView {

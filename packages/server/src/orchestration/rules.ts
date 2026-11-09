@@ -83,14 +83,14 @@ import { redactText } from "../logging/redact.ts";
 export type OrchestrationRole = ThreadRole | "worker";
 
 /**
- * Only Codex and Claude Code may take executable orchestration roles. Claude uses its outward hook and strict
- * Dream file bridge. Codex requires an isolated gateway home for outward approval enforcement;
- * its Dreams use guided native permissions rather than a file-only guarantee. Server app-tool
- * approval, thread audience, ownership and confirmed system delivery remain authoritative.
+ * Claude Code, Codex, and Grok may orchestrate and work. Dreams stay on Claude Code and Codex:
+ * Claude confines file tools, and Codex uses guided native permissions. Grok has no memory-update
+ * mode. Server app-tool approval, thread audience, ownership and confirmed system delivery remain
+ * authoritative.
  */
 export const ADMITTED: Readonly<Record<OrchestrationRole, ReadonlyArray<AgentKind>>> = {
-  orchestrator: ["claude", "codex"],
-  worker: ["claude", "codex"],
+  orchestrator: ["claude", "codex", "grok"],
+  worker: ["claude", "codex", "grok"],
   dream: AgentKind.literals.filter((agent) => {
     const mode = dreamSupportFor(agent, { kind: "implementation" }).mode;
     return mode === "confined" || mode === "guided";

@@ -159,13 +159,13 @@ const workspace = (overrides: Partial<RuleWorkspace> = {}): RuleWorkspace => ({
 });
 
 describe("admission", () => {
-  const kinds: ReadonlyArray<AgentKind> = ["claude", "codex", UNADMITTED];
+  const kinds: ReadonlyArray<AgentKind> = ["claude", "codex", "grok", UNADMITTED];
   const roles = ["orchestrator", "worker", "dream"] as const;
 
-  it("admits only Claude and Codex for every role", () => {
+  it("admits Grok to orchestrate and work, and keeps dreams on Claude Code and Codex", () => {
     expect(ADMITTED).toEqual({
-      orchestrator: ["claude", "codex"],
-      worker: ["claude", "codex"],
+      orchestrator: ["claude", "codex", "grok"],
+      worker: ["claude", "codex", "grok"],
       dream: ["claude", "codex"],
     });
   });
@@ -173,7 +173,9 @@ describe("admission", () => {
   it.each(roles.flatMap((role) => kinds.map((kind) => [role, kind] as const)))(
     "as %s: %s",
     (role, kind) => {
-      expect(admittedForRole(kind, role)).toBe(kind === "claude" || kind === "codex");
+      expect(admittedForRole(kind, role)).toBe(
+        kind === "claude" || kind === "codex" || (kind === "grok" && role !== "dream"),
+      );
     },
   );
 });

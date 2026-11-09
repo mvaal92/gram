@@ -32,6 +32,7 @@ const AGENTS: ReadonlyArray<RuntimeAgent> = ["claude", "codex"];
 const NAMES: Readonly<Record<RuntimeAgent, string>> = {
   claude: "Claude Code",
   codex: "Codex",
+  grok: "Grok",
 };
 
 /** How much of the output the row shows. */

@@ -7,6 +7,7 @@ import {
 } from "@gram/agents";
 import { ClaudeHost, ClaudeHostLive } from "@gram/agents/claude";
 import { CodexHost, CodexHostLive } from "@gram/agents/codex";
+import { GrokHost, GrokHostLive } from "@gram/agents/grok";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
@@ -67,9 +68,10 @@ const config = {
   ...(parentPort === undefined ? {} : { shellOpensLinks: true }),
 };
 
-/** Codex and Claude Code use installed subscription CLIs or an explicitly selected gateway.
+/** Codex, Claude Code, and Grok use installed CLIs. Codex may also use an explicitly selected gateway.
  * Gateway keys and child homes remain separate from the developer's subscription credentials.
  * ManagedRuntimes supplies Codex only when the user explicitly chose that runtime.
+ * Grok resolves its binary when a thread opens, so a missing CLI does not stop the server.
  */
 type AgentNeeds = GatewayCredentials | ManagedRuntimes;
 
@@ -105,11 +107,12 @@ const CodexAgent = Layer.unwrap(
 const ClaudeAgents: Layer.Layer<AgentHosts, never, AgentNeeds> = Layer.effect(
   AgentHosts,
   Effect.gen(function* () {
-    return AgentHosts.fromHosts([yield* ClaudeHost, yield* CodexHost]);
+    return AgentHosts.fromHosts([yield* ClaudeHost, yield* CodexHost, yield* GrokHost]);
   }),
 ).pipe(
   Layer.provide(ClaudeHostLive()),
   Layer.provide(CodexAgent),
+  Layer.provide(GrokHostLive({ dataDir: config.dataDir })),
   Layer.provide(GatewayCredentials.layerProvider),
 );
 

@@ -8,18 +8,20 @@ export const discoverDefaultModel = (
   hosts: AgentHosts["Service"],
 ): Effect.Effect<ModelRef, AgentUnavailable> =>
   Effect.gen(function* () {
+    const names = ["Claude Code", "Codex", "Grok"] as const;
     const results = yield* Effect.forEach(
-      ["claude", "codex"] as const,
+      ["claude", "codex", "grok"] as const,
       (agent) =>
         hosts.get(agent).pipe(
           Effect.flatMap((host) => host.listModels()),
           Effect.result,
         ),
-      { concurrency: 2 },
+      { concurrency: 1 },
     );
     const model = localSubscriptionDefault(
       Result.isSuccess(results[0]!) ? results[0]!.success : undefined,
       Result.isSuccess(results[1]!) ? results[1]!.success : undefined,
+      Result.isSuccess(results[2]!) ? results[2]!.success : undefined,
     );
     if (model !== undefined) return model;
     return yield* new AgentUnavailable({
@@ -27,7 +29,7 @@ export const discoverDefaultModel = (
       message: `No local agent offered a default model. ${results
         .map(
           (result, i) =>
-            `${i === 0 ? "Claude Code" : "Codex"}: ${Result.isFailure(result) ? result.failure.message : "no models listed"}`,
+            `${names[i]}: ${Result.isFailure(result) ? result.failure.message : "no models listed"}`,
         )
         .join(". ")}. Select an agent and check its installation and login.`,
     });

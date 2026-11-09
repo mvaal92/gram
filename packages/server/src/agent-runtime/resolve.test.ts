@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import { CLAUDE_AGENT_SDK_VERSION } from "@gram/agents/claude";
 import { CODEX_CLI_VERSION } from "@gram/agents/codex";
+import { GROK_CLI_VERSION } from "@gram/agents/grok";
 import type {
   AgentRuntime,
   CliUpdateState,
@@ -268,6 +269,7 @@ describe("agent runtime policy", () => {
         "native",
       ],
       ["codex", "C:\\tools\\codex.exe", "C:\\tools\\codex.exe", false, "unknown"],
+      ["grok", "/home/me/.grok/bin/grok", "/home/me/.grok/bin/grok", false, "native"],
     ];
     for (const [agent, path, resolved, beside, installer] of cases)
       expect(installerOf(agent, path, resolved, beside), path).toBe(installer);
@@ -302,6 +304,23 @@ describe("agent runtime policy", () => {
     expect(installSteps("codex", "pnpm", "0.159.4", "darwin", false)[0]!.command).toBe(
       "pnpm add -g @openai/codex@0.159.4",
     );
+    expect(installSteps("grok", undefined, "1.0.77", "darwin", true)).toEqual([
+      {
+        installer: "native",
+        command: "curl -fsSL https://x.ai/cli/install.sh | bash",
+        exact: false,
+      },
+    ]);
+    expect(installSteps("grok", "native", "1.0.77", "darwin", true)).toEqual([
+      {
+        installer: "native",
+        command: "grok update",
+        exact: false,
+        run: ["grok", "update"],
+      },
+    ]);
+    expect(installSteps("grok", "native", "1.0.77", "darwin", false)).toEqual([]);
+    expect(installSteps("grok", "npm", "1.0.77", "darwin", true)).toEqual([]);
   });
 
   it("runs only a plain command for the installer that's there, never a pipeline", () => {
@@ -1014,6 +1033,11 @@ describe("the shipped bindings", () => {
       cliVersion: `2.1.${CLAUDE_AGENT_SDK_VERSION.split(".")[2]}`,
       binding: "claude-agent-sdk",
       bindingVersion: CLAUDE_AGENT_SDK_VERSION,
+    });
+    expect(BASELINES.grok).toEqual({
+      cliVersion: GROK_CLI_VERSION,
+      binding: "grok-cli",
+      bindingVersion: GROK_CLI_VERSION,
     });
   });
 });
