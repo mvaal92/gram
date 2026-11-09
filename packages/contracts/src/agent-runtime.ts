@@ -7,7 +7,7 @@ import * as Schema from "effect/Schema";
  */
 
 /** The agents whose CLI Gram binds to directly. */
-export const RuntimeAgent = Schema.Literals(["claude", "codex"]);
+export const RuntimeAgent = Schema.Literals(["claude", "codex", "grok"]);
 export type RuntimeAgent = typeof RuntimeAgent.Type;
 
 /**
@@ -45,7 +45,7 @@ export const BindingBaseline = Schema.Struct({
   /** The CLI version the adapter was generated or tested against. */
   cliVersion: RuntimeVersion,
   /** The shipped binding: the Agent SDK, the generated app-server protocol, or the HTTP SDK types. */
-  binding: Schema.Literals(["claude-agent-sdk", "codex-protocol"]),
+  binding: Schema.Literals(["claude-agent-sdk", "codex-protocol", "grok-cli"]),
   bindingVersion: RuntimeVersion,
 });
 export type BindingBaseline = typeof BindingBaseline.Type;

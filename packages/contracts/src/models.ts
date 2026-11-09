@@ -36,10 +36,12 @@ export type ModelList = typeof ModelList.Type;
 export const localSubscriptionDefault = (
   claude: ReadonlyArray<AgentModel> | undefined,
   codex: ReadonlyArray<AgentModel> | undefined,
+  grok?: ReadonlyArray<AgentModel> | undefined,
 ): ModelRef | undefined => {
   for (const [agent, models] of [
     ["claude", claude],
     ["codex", codex],
+    ["grok", grok],
   ] as const) {
     const model = models?.find((row) => row.isDefault) ?? models?.[0];
     if (model !== undefined) return { agent, model: model.id, speed: "standard" };

@@ -1,5 +1,6 @@
 import { CLAUDE_AGENT_SDK_VERSION } from "@gram/agents/claude";
 import { CODEX_CLI_VERSION, codexVersionWarning, compareCodexVersion } from "@gram/agents/codex";
+import { GROK_CLI_VERSION } from "@gram/agents/grok";
 import type {
   BindingBaseline,
   CompatibilityVerdict,
@@ -29,12 +30,22 @@ export const BASELINES: Readonly<Record<RuntimeAgent, BindingBaseline>> = {
     binding: "codex-protocol",
     bindingVersion: CODEX_CLI_VERSION,
   },
+  grok: {
+    cliVersion: GROK_CLI_VERSION,
+    binding: "grok-cli",
+    bindingVersion: GROK_CLI_VERSION,
+  },
 };
 
-/** The npm package each CLI is published as; the newer-version signal reads its registry entry. */
+/**
+ * The npm package each CLI is published as; the newer-version signal reads its registry entry.
+ * `grok` is not published there. Release checks and `cli-update` omit it, and nothing may query
+ * this placeholder.
+ */
 export const NPM_PACKAGES: Readonly<Record<RuntimeAgent, string>> = {
   claude: "@anthropic-ai/claude-code",
   codex: "@openai/codex",
+  grok: "grok",
 };
 
 /** Claude Code may run this many patches ahead of the SDK's matched CLI, as its session check allows. */
@@ -81,6 +92,7 @@ export interface Judgement {
 const NAMES: Readonly<Record<RuntimeAgent, string>> = {
   claude: "Claude Code",
   codex: "Codex",
+  grok: "Grok",
 };
 
 /**
@@ -156,6 +168,7 @@ export const installerOf = (
     return "native";
   if (agent === "codex" && /\/\.codex\/packages\/standalone\/(current|releases)\//.test(both))
     return "native";
+  if (agent === "grok" && both.includes("/.grok/bin/")) return "native";
   return "unknown";
 };
 
@@ -174,6 +187,8 @@ export const installationNote = (
     return "This executable is read-only for your account. Update it through its installation owner in a terminal, then Re-check. Gram does not request administrator access.";
   if (installer === "native" && agent === "codex" && !latest)
     return "Codex's standalone updater (`codex update`) installs latest and cannot pin a version. Gram can run it only when the latest release has passed its compatibility and release-age checks. An npm install would create a separate installation.";
+  if (installer === "native" && agent === "grok" && !latest)
+    return "Grok's updater (`grok update`) installs latest and cannot pin a version. Gram can run it only when the latest release has passed its compatibility and release-age checks.";
   if (installer === "unknown")
     return "Gram could not identify this installation's owner. Update it through the tool that installed it, then Re-check. Installing with npm would create a separate installation and may not change the executable on PATH.";
   return undefined;
@@ -215,6 +230,19 @@ export const installSteps = (
   latest: boolean,
 ): ReadonlyArray<InstallStep> => {
   if (installer === "nix" || installer === "bundled") return [];
+  if (agent === "grok") {
+    if (installer === "native")
+      return latest ? [runnable("native", ["grok", "update"], undefined)] : [];
+    if (installer === undefined)
+      return [
+        {
+          installer: "native",
+          command: "curl -fsSL https://x.ai/cli/install.sh | bash",
+          exact: false,
+        },
+      ];
+    return [];
+  }
   // A standalone Codex is not npm-owned. Its latest-only updater cannot install a baseline pin.
   if (installer === "native" && agent === "codex")
     return latest ? [runnable("native", ["codex", "update"], undefined)] : [];

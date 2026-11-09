@@ -77,7 +77,7 @@ for (const agent of ["claude", "codex"] as const) {
       expect(thread.model).toEqual({ agent, model: `${agent}-default`, speed: "standard" });
       expect((yield* store.getThread(thread.id)).model).toEqual(thread.model);
       expect(f.opened).toEqual([agent]);
-      expect(f.discovered.toSorted()).toEqual(["claude", "codex"]);
+      expect(f.discovered.toSorted()).toEqual(["claude", "codex", "grok"]);
     }).pipe(Effect.provide(f.layer));
   });
 

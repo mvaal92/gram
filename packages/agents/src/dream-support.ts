@@ -49,6 +49,8 @@ export const dreamSupportFor = (agent: AgentKind, evidence: DreamSupportEvidence
           .filter(Boolean)
           .join(" "),
       };
+    case "grok":
+      return { mode: "unsupported", reason: "Grok has no memory update mode." };
     // A kind this build doesn't name gets no Dream, whatever reached it.
     default:
       return { mode: "unsupported", reason: "Gram has no memory update mode for this agent." };

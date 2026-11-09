@@ -18,12 +18,13 @@ export interface ToolRow {
   readonly installUrl?: string;
 }
 
-/** The agents Gram runs; one of them signed in is enough. */
-const AGENTS: ReadonlySet<LaunchTool> = new Set(["claude", "codex"]);
+/** The agents Gram runs; one of them ready is enough. */
+const AGENTS: ReadonlySet<LaunchTool> = new Set(["claude", "codex", "grok"]);
 
 const TOOLS: ReadonlyArray<Pick<ToolRow, "tool" | "name"> & { optional?: true }> = [
   { tool: "claude", name: agentLabel("claude") },
   { tool: "codex", name: agentLabel("codex") },
+  { tool: "grok", name: agentLabel("grok") },
   { tool: "git", name: "git" },
   { tool: "gh", name: "GitHub CLI", optional: true },
 ];
@@ -39,15 +40,19 @@ const CLAUDE_ATTENTION: Partial<Record<LaunchChecks["claudeSignIn"], string>> = 
 const AGENT_INSTALL: Partial<Record<LaunchTool, { install: string; signIn: string }>> = {
   claude: { install: "npm i -g @anthropic-ai/claude-code", signIn: "claude" },
   codex: { install: "npm i -g @openai/codex", signIn: "codex login" },
+  grok: { install: "curl -fsSL https://x.ai/cli/install.sh | bash", signIn: "grok login" },
 };
 
 /** Each tool's own install instructions, which the first run links to while it is missing. */
 const INSTALL_DOCS: Readonly<Record<LaunchTool, string>> = {
   claude: "https://docs.claude.com/en/docs/claude-code/setup",
   codex: "https://github.com/openai/codex",
+  grok: "https://x.ai/cli",
   git: "https://git-scm.com/downloads",
   gh: "https://cli.github.com",
 };
+
+const GROK_NOT_SIGNED_IN = "Not signed in. Run `grok login`, then re-check.";
 
 const CODEX_ATTENTION = {
   notSignedIn: "Not signed in. Run `codex login` with your ChatGPT account, then re-check.",
@@ -57,9 +62,9 @@ const CODEX_ATTENTION = {
 };
 
 /**
- * The first-run tools check: Claude Code, Codex, git and the GitHub CLI, read from the launch
- * checks and never changed by them. Either agent alone is enough, so the other one missing is
- * `optional`; with neither ready, both say what to do.
+ * The first-run tools check: Claude Code, Codex, Grok, git and the GitHub CLI, read from the launch
+ * checks and never changed by them. One agent ready is enough, so the others missing are
+ * `optional`; with none ready, each says what to do.
  */
 export function toolRows(checks: LaunchChecks): ToolRow[] {
   const rows = TOOLS.map(({ optional, ...row }): ToolRow & { optional?: true } => {
@@ -85,9 +90,11 @@ export function toolRows(checks: LaunchChecks): ToolRow[] {
         ? CLAUDE_ATTENTION[checks.claudeSignIn]
         : row.tool === "codex" && checks.codexSignIn !== "signedIn"
           ? CODEX_ATTENTION[checks.codexSignIn ?? "unknown"]
-          : row.tool === "gh" && !checks.ghSignedIn
-            ? "Not signed in. Run `gh auth login`."
-            : undefined;
+          : row.tool === "grok" && checks.grokSignIn === "notSignedIn"
+            ? GROK_NOT_SIGNED_IN
+            : row.tool === "gh" && !checks.ghSignedIn
+              ? "Not signed in. Run `gh auth login`."
+              : undefined;
     return attention === undefined
       ? {
           ...row,

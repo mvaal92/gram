@@ -1,5 +1,7 @@
 import { homedir } from "node:os";
+import { join } from "node:path";
 import { claudeSdkExecutable, nodeFs, pathCandidates, resolveBinary } from "@gram/agents/claude";
+import { grokAuthFact } from "@gram/agents/grok";
 import { canonicalizeOrOwned, findOnPath, PathProbe, Proc } from "@gram/git";
 import type { LaunchChecks } from "@gram/contracts";
 import * as Context from "effect/Context";
@@ -94,6 +96,10 @@ export class LaunchChecksCache extends Context.Service<
           claudeSdkExecutable(path).pipe(
             Effect.match({ onSuccess: () => undefined, onFailure: (error) => error.message }),
           ),
+        grokAuth: Effect.sync(() => ({
+          auth: grokAuthFact(join(homedir(), ".grok", "auth.json")),
+          apiKeyConfigured: (process.env["XAI_API_KEY"] ?? "") !== "",
+        })),
         run: (file, args) => proc.run(file, args, { cwd: homedir(), timeoutMs: CHECK_TIMEOUT_MS }),
         now: () => Date.now(),
       };
@@ -111,7 +117,7 @@ export const launchChecksHandlers = Effect.gen(function* () {
   const refreshModels = Option.isNone(hosts)
     ? Effect.void
     : Effect.forEach(
-        ["claude", "codex"] as const,
+        ["claude", "codex", "grok"] as const,
         (agent) =>
           hosts.value.get(agent).pipe(
             Effect.flatMap((host) => host.reloadConfig?.(undefined) ?? Effect.void),

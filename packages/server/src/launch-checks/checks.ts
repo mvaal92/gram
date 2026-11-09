@@ -1,8 +1,10 @@
 import { checkAuthStatus, type AuthProblem } from "@gram/agents/claude";
 import { CODEX_CLI_VERSION } from "@gram/agents/codex";
+import { grokSignInOf, type GrokAuthFact } from "@gram/agents/grok";
 import type {
   ClaudeSignIn,
   CodexSignIn,
+  GrokSignIn,
   AgentKind,
   GatewayAgentTool,
   LaunchChecks,
@@ -39,6 +41,14 @@ export interface LaunchProbe {
    * (`claudeSdkExecutable`); undefined when one can.
    */
   readonly claudeUnusable: (path: string) => Effect.Effect<string | undefined>;
+  /**
+   * Grok's auth file, stat'd and not read, plus whether `XAI_API_KEY` is set. Absent: the sign-in
+   * stays unknown. The key's value never enters this probe.
+   */
+  readonly grokAuth?: Effect.Effect<{
+    readonly auth: GrokAuthFact;
+    readonly apiKeyConfigured: boolean;
+  }>;
   /** Runs `file` to completion; spawn failures and timeouts are errors, a non-zero exit is not. */
   readonly run: (
     file: string,
@@ -50,7 +60,7 @@ export interface LaunchProbe {
   readonly now: () => number;
 }
 
-const TOOLS: ReadonlyArray<LaunchTool> = ["claude", "git", "gh", "codex"];
+const TOOLS: ReadonlyArray<LaunchTool> = ["claude", "git", "gh", "codex", "grok"];
 
 /** The version of each gateway agent's CLI that Gram's adapter is tested with. */
 export const TESTED_VERSIONS: Readonly<Record<GatewayAgentTool, string>> = {
@@ -88,17 +98,24 @@ export const upgradeCommand = (
   return `npm i -g @openai/codex@${version}`;
 };
 
+const grokReady = (checks: LaunchChecks): boolean => {
+  const found = checks.tools.find((t) => t.tool === "grok")?.found === true;
+  return found && (checks.grokSignIn === "signedIn" || checks.grokSignIn === "apiKey");
+};
+
 /**
  * The agent a new thread starts on while no default model is saved, read off the installed CLIs as
- * discovery picks it: one that's signed in, Claude Code first, else one that's at least installed.
- * Undefined with neither installed.
+ * discovery picks it: one that can start, Claude Code, then Codex, then Grok, else one that's at
+ * least installed in that order. Undefined with none installed.
  */
 export const inferredAgentOf = (checks: LaunchChecks): AgentKind | undefined => {
   const found = (tool: LaunchTool) => checks.tools.find((t) => t.tool === tool)?.found === true;
   if (claudeReady(checks)) return "claude";
   if (found("codex") && checks.codexSignIn === "signedIn") return "codex";
+  if (grokReady(checks)) return "grok";
   if (found("claude")) return "claude";
   if (found("codex")) return "codex";
+  if (found("grok")) return "grok";
   return undefined;
 };
 
@@ -261,7 +278,8 @@ export const runLaunchChecks = (probe: LaunchProbe): Effect.Effect<LaunchChecks>
     const codexPath = tools.find((t) => t.tool === "codex")?.path;
     const ghPath = tools.find((t) => t.tool === "gh")?.path;
 
-    const [claudeSignIn, codexSignIn, ghSignedIn] = yield* Effect.all(
+    const grokPath = tools.find((t) => t.tool === "grok")?.path;
+    const [claudeSignIn, codexSignIn, ghSignedIn, grokSignIn] = yield* Effect.all(
       [
         claudePath === undefined
           ? Effect.succeed<ClaudeSignIn>("unknown")
@@ -281,6 +299,12 @@ export const runLaunchChecks = (probe: LaunchProbe): Effect.Effect<LaunchChecks>
               Effect.map((out) => out.status === 0),
               Effect.orElseSucceed(() => false),
             ),
+        grokPath === undefined || probe.grokAuth === undefined
+          ? Effect.succeed<GrokSignIn>("unknown")
+          : probe.grokAuth.pipe(
+              Effect.map((fact) => grokSignInOf(fact.auth, fact.apiKeyConfigured)),
+              Effect.orElseSucceed((): GrokSignIn => "unknown"),
+            ),
       ],
       { concurrency: "unbounded" },
     );
@@ -290,11 +314,12 @@ export const runLaunchChecks = (probe: LaunchProbe): Effect.Effect<LaunchChecks>
         claudeUsable: claude?.found === true && claude.unusable === undefined,
         claudeSignIn,
         codexSignIn,
+        grokSignIn,
         ghSignedIn,
         tools: tools.map((t) => `${t.tool}=${t.path ?? "missing"}@${t.version ?? "?"}`).join(" "),
       }),
     );
-    return { checkedAt: probe.now(), tools, claudeSignIn, codexSignIn, ghSignedIn };
+    return { checkedAt: probe.now(), tools, claudeSignIn, codexSignIn, grokSignIn, ghSignedIn };
   });
 
 /**

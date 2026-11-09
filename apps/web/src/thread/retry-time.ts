@@ -18,6 +18,7 @@ export function retryTimeOf(
   now: number,
 ): number | undefined {
   if (error.kind !== "rateLimit" || model === undefined || model.profileId !== undefined) return;
+  if (model.agent !== "claude" && model.agent !== "codex") return undefined;
   const windows = limits[model.agent];
   if (windows === undefined) return undefined;
   let latest: number | undefined;

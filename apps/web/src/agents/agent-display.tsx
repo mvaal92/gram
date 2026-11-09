@@ -5,7 +5,7 @@ import type { ComponentType } from "react";
 import { cn } from "@/lib/utils";
 
 import { AGENT_LABEL, agentLabel } from "./agent-label";
-import { type AgentMarkProps, ClaudeMark, OpenAiMark } from "./agent-marks";
+import { type AgentMarkProps, ClaudeMark, GrokMark, OpenAiMark } from "./agent-marks";
 
 export { agentLabel } from "./agent-label";
 
@@ -18,6 +18,7 @@ export interface AgentDisplay {
 export const AGENT_DISPLAY: Readonly<Record<AgentKind, AgentDisplay>> = {
   claude: { label: AGENT_LABEL.claude, icon: ClaudeMark },
   codex: { label: AGENT_LABEL.codex, icon: OpenAiMark },
+  grok: { label: AGENT_LABEL.grok, icon: GrokMark },
 };
 
 const displayOf = (agent: string): AgentDisplay | undefined =>

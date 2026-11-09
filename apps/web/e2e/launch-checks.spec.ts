@@ -437,7 +437,7 @@ test("first run with no agent warns once and leads with installing one", async (
   await expect(page.getByTestId("launch-checks-banner")).toHaveCount(0);
   await page.getByTestId("launch-issues-chip").click();
   await expect(page.getByTestId("launch-checks-banner")).toContainText(
-    "Neither Claude Code nor Codex is installed",
+    "Claude Code, Codex, and Grok are not installed",
   );
 });
 

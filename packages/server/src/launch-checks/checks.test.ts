@@ -18,7 +18,7 @@ import {
   type LaunchProbe,
 } from "./checks.ts";
 
-/** Codex when it is not installed: the tested version and an npm install. */
+/** Codex when it is not installed: the tested version and an npm install. Grok has no npm pin. */
 const AGENTS_MISSING = [
   {
     tool: "codex",
@@ -26,6 +26,7 @@ const AGENTS_MISSING = [
     testedVersion: TESTED_VERSIONS.codex,
     upgradeCommand: `npm i -g @openai/codex@${TESTED_VERSIONS.codex}`,
   },
+  { tool: "grok", found: false },
 ];
 
 const SIGNED_IN = JSON.stringify({
@@ -85,6 +86,7 @@ describe("runLaunchChecks", () => {
         ],
         claudeSignIn: "signedIn",
         codexSignIn: "unknown",
+        grokSignIn: "unknown",
         ghSignedIn: true,
       });
     }),
@@ -209,11 +211,38 @@ describe("runLaunchChecks", () => {
           claudeUsable: true,
           claudeSignIn: "apiKey",
           codexSignIn: "unknown",
+          grokSignIn: "unknown",
           ghSignedIn: false,
-          tools: "claude=C:\\npm\\claude.cmd@2.1.273 git=missing@? gh=missing@? codex=missing@?",
+          tools:
+            "claude=C:\\npm\\claude.cmd@2.1.273 git=missing@? gh=missing@? codex=missing@? grok=missing@?",
         },
       ]);
       expect(JSON.stringify(lines)).not.toMatch(/tester@|org-planted|ANTHROPIC_AUTH_TOKEN/);
+    }),
+  );
+
+  it.effect("classifies Grok from a stat and whether a key is set, without running it", () =>
+    Effect.gen(function* () {
+      const { probe, runs } = fakeProbe(
+        { grok: "/opt/bin/grok" },
+        { "/opt/bin/grok --version": { status: 0, stdout: "grok 1.0.77\n" } },
+      );
+      const signedIn = yield* runLaunchChecks({
+        ...probe,
+        grokAuth: Effect.succeed({ auth: "present", apiKeyConfigured: true }),
+      });
+      expect(signedIn.grokSignIn).toBe("signedIn");
+      const byKey = yield* runLaunchChecks({
+        ...probe,
+        grokAuth: Effect.succeed({ auth: "absent", apiKeyConfigured: true }),
+      });
+      expect(byKey.grokSignIn).toBe("apiKey");
+      const signedOut = yield* runLaunchChecks({
+        ...probe,
+        grokAuth: Effect.succeed({ auth: "absent", apiKeyConfigured: false }),
+      });
+      expect(signedOut.grokSignIn).toBe("notSignedIn");
+      expect(runs.some((run) => /models|auth|inspect|login/.test(run))).toBe(false);
     }),
   );
 });
@@ -428,6 +457,21 @@ describe("Codex subscription status", () => {
     );
     expect(inferredAgentOf({ ...codexOnly, codexSignIn: "notSignedIn" })).toBe("codex");
     expect(inferredAgentOf(neither)).toBeUndefined();
+    expect(
+      inferredAgentOf({
+        ...neither,
+        tools: [...neither.tools, { tool: "grok", found: true }],
+        grokSignIn: "signedIn",
+      }),
+    ).toBe("grok");
+    expect(
+      inferredAgentOf({
+        ...codexOnly,
+        codexSignIn: "notSignedIn",
+        tools: [...codexOnly.tools, { tool: "grok", found: true }],
+        grokSignIn: "apiKey",
+      }),
+    ).toBe("grok");
     expect(localAgentsInUseOf(settings(), [], neither)).toEqual([]);
     // A saved default or a thread still counts, whatever is installed.
     expect(localAgentsInUseOf(settings("claude"), [], codexOnly)).toEqual(["claude"]);

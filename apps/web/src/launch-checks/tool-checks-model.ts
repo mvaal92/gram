@@ -1,6 +1,7 @@
 import {
   type ClaudeSignIn,
   type CodexSignIn,
+  type GrokSignIn,
   type LaunchChecks,
   type ToolCheck,
 } from "@gram/contracts";
@@ -10,8 +11,8 @@ import { agentLabel } from "@/agents/agent-label";
 import { isOlderVersion } from "./issues";
 
 /** The agents Gram runs itself, whose CLIs the launch checks look for. */
-export type Harness = "claude" | "codex";
-export const HARNESSES: readonly Harness[] = ["claude", "codex"];
+export type Harness = "claude" | "codex" | "grok";
+export const HARNESSES: readonly Harness[] = ["claude", "codex", "grok"];
 
 interface AgentTrouble {
   /** `error` when its threads can't start, `warning` when they start with something off. */
@@ -129,6 +130,7 @@ export function agentStatuses(checks: LaunchChecks): AgentStatus[] {
   const tool = (agent: Harness) => checks.tools.find((t) => t.tool === agent);
   const inUse = new Set(checks.agentsInUse ?? []);
   return HARNESSES.map((agent) => {
+    if (agent === "grok") return grokStatus(tool(agent), checks);
     if (agent === "claude") {
       const status = claudeStatus(tool(agent), checks);
       if (
@@ -161,6 +163,56 @@ export function agentStatuses(checks: LaunchChecks): AgentStatus[] {
       : status;
   });
 }
+
+function grokStatus(tool: ToolCheck | undefined, checks: LaunchChecks): AgentStatus {
+  const inUse = checks.localAgentsInUse?.includes("grok") === true;
+  if (tool === undefined || !tool.found) {
+    if (!inUse) return { agent: "grok", note: "not installed" };
+    return {
+      agent: "grok",
+      trouble: {
+        level: "error",
+        summary: "not installed",
+        detail: "Grok isn't on the login-shell PATH, so Grok threads can't start.",
+        fix: "curl -fsSL https://x.ai/cli/install.sh | bash",
+      },
+    };
+  }
+  const version = tool.version === undefined ? {} : { version: tool.version };
+  const signIn = checks.grokSignIn ?? "unknown";
+  if (signIn === "notSignedIn" && inUse) {
+    return {
+      agent: "grok",
+      ...version,
+      trouble: {
+        level: "error",
+        summary: "not signed in",
+        detail: "Grok isn't signed in. Run `grok login`, or set XAI_API_KEY, then re-check.",
+        fix: "grok login",
+      },
+    };
+  }
+  if (signIn === "apiKey" && inUse) {
+    return {
+      agent: "grok",
+      ...version,
+      trouble: {
+        level: "warning",
+        summary: "using an API key",
+        detail:
+          "Grok is using an API key. A `grok login` session is preferred; the key still starts threads.",
+      },
+    };
+  }
+  return { agent: "grok", ...version, note: GROK_SIGN_IN[signIn] };
+}
+
+const GROK_SIGN_IN: Readonly<Record<GrokSignIn, string>> = {
+  signedIn: "signed in",
+  notSignedIn: "not signed in",
+  apiKey: "using an API key",
+  unknown: "sign-in unknown",
+};
 
 const CODEX_SIGN_IN: Readonly<Record<CodexSignIn, string>> = {
   signedIn: "ChatGPT login",
@@ -202,6 +254,7 @@ export function toolSummary(tool: ToolCheck, checks: LaunchChecks): string {
   if (tool.found && tool.tool === "claude") parts.push(CLAUDE_SIGN_IN[checks.claudeSignIn]);
   if (tool.found && tool.tool === "codex")
     parts.push(CODEX_SIGN_IN[checks.codexSignIn ?? "unknown"]);
+  if (tool.found && tool.tool === "grok") parts.push(GROK_SIGN_IN[checks.grokSignIn ?? "unknown"]);
   if (tool.found && tool.tool === "gh")
     parts.push(checks.ghSignedIn ? "signed in" : "not signed in");
   if (tool.testedVersion !== undefined) parts.push(`tested with ${tool.testedVersion}`);

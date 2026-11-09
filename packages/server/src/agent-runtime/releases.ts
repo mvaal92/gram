@@ -104,6 +104,7 @@ export interface VendorReleasesConfig {
   readonly minRefreshMs?: number;
 }
 
+/** Grok is not an npm package. Its Settings row does not read the registry. */
 const AGENTS: ReadonlyArray<RuntimeAgent> = ["claude", "codex"];
 
 /**

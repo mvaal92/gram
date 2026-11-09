@@ -337,7 +337,9 @@ at every armed merge in the repo, and fires `freezeLifted` wakes.
 
 ## Accounts, models and speed
 
-Codex and Claude Code are the only executable harnesses. Select one when starting a thread. Signed-out agents remain selectable and
+Claude Code, Codex, and Grok are the executable harnesses. Select one when starting a thread.
+Grok runs the local `grok` CLI; the provider seam and its limits are in
+[Grok](design/grok-provider.md). Signed-out agents remain selectable and
 explain login/retry. New defaults come from CLI discovery; an explicit saved model,
 effort, speed or gateway profile remains authoritative. **Retry models** and
 **Re-check** refresh discovery after login changes without interrupting held Codex

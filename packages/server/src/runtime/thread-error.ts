@@ -42,6 +42,7 @@ const excerpt = (detail: string, room: number): string =>
 const AGENT_NAMES: Record<AgentKind, string> = {
   claude: "Claude",
   codex: "Codex",
+  grok: "Grok",
 };
 
 const hostOf = (url: string): string | undefined => {
