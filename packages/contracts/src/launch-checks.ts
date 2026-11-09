@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 import { AgentKind } from "./domain.ts";
 
-export const LaunchTool = Schema.Literals(["claude", "git", "gh", "codex"]);
+export const LaunchTool = Schema.Literals(["claude", "git", "gh", "codex", "grok"]);
 export type LaunchTool = typeof LaunchTool.Type;
 
 /** The agents that run through a gateway profile, whose CLIs Gram pins a tested version of. */
@@ -58,6 +58,13 @@ export type ClaudeSignIn = typeof ClaudeSignIn.Type;
 export const CodexSignIn = Schema.Literals(["signedIn", "notSignedIn", "apiKey", "unknown"]);
 export type CodexSignIn = typeof CodexSignIn.Type;
 
+/**
+ * Grok's sign-in, from the auth file's presence and whether `XAI_API_KEY` is set. The file is
+ * never read. A session file counts as `signedIn` even when a key is also set.
+ */
+export const GrokSignIn = Schema.Literals(["signedIn", "notSignedIn", "apiKey", "unknown"]);
+export type GrokSignIn = typeof GrokSignIn.Type;
+
 /** What a gateway Codex thread reads from the user's own Codex setup, found by looking at files. */
 export const CodexGatewayInherits = Schema.Struct({
   /** The user's skill folders it sees: `~/.agents/skills` and their `CODEX_HOME/skills`. */
@@ -75,6 +82,8 @@ export const LaunchChecks = Schema.Struct({
   claudeSignIn: ClaudeSignIn,
   /** Optional for older saved/mock responses; absent means unknown, never signed in. */
   codexSignIn: Schema.optionalKey(CodexSignIn),
+  /** Optional for older saved responses; absent means unknown, never signed in. */
+  grokSignIn: Schema.optionalKey(GrokSignIn),
   /** `gh auth status` succeeded. */
   ghSignedIn: Schema.Boolean,
   /**

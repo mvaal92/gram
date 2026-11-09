@@ -28,7 +28,7 @@ import { CompactionActivity, ThreadStatus } from "./thread-status.ts";
 // Agents, models, profiles
 
 /** The agent CLIs Gram runs. */
-export const AgentKind = Schema.Literals(["claude", "codex"]);
+export const AgentKind = Schema.Literals(["claude", "codex", "grok"]);
 export type AgentKind = typeof AgentKind.Type;
 
 /** Claude's permission modes. `dontAsk` is SDK-only but can arrive in a `setMode` suggestion. */
