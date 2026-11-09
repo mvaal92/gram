@@ -33,11 +33,13 @@ const ALL_READY: LaunchChecks = {
   tools: [
     { tool: "claude", found: true, version: "2.1.273" },
     { tool: "codex", found: true, version: "0.160.0" },
+    { tool: "grok", found: true, version: "1.0.77" },
     { tool: "git", found: true, version: "2.47.1" },
     { tool: "gh", found: true, version: "2.63.0" },
   ],
   claudeSignIn: "signedIn",
   codexSignIn: "signedIn",
+  grokSignIn: "signedIn",
   ghSignedIn: true,
 };
 
@@ -90,7 +92,7 @@ describe("first run", () => {
     expect(actions.nextElementSibling).toBe(welcome.getByTestId("welcome-agents"));
     // Every agent ready: the line names them, and there is nothing to set up or re-check.
     expect(welcome.getByTestId("welcome-runs-with").textContent).toBe(
-      "Runs with Claude Code or Codex",
+      "Runs with Claude Code or Codex or Grok",
     );
     expect(welcome.queryByRole("list", { name: "Tools to set up" })).toBeNull();
     expect(welcome.queryByRole("button", { name: "Check again" })).toBeNull();
@@ -234,7 +236,7 @@ describe("first run", () => {
       "listitem",
     );
     // The ready agent is named in the line under Open; only the one to sign in to is listed.
-    expect(welcome.getByTestId("welcome-runs-with").textContent).toBe("Runs with Codex");
+    expect(welcome.getByTestId("welcome-runs-with").textContent).toBe("Runs with Codex or Grok");
     expect(rows.map((item) => item.getAttribute("data-tool"))).toEqual(["claude"]);
     const claude = rows[0];
     expect(claude?.getAttribute("data-state")).toBe("attention");
@@ -263,7 +265,7 @@ describe("first run", () => {
     expect(within(claude!).queryByTestId("welcome-remedy")).toBeNull();
     const install = within(claude!).getByRole("link", { name: /^Install Claude Code/ });
     expect(install.getAttribute("href")).toBe("https://docs.claude.com/en/docs/claude-code/setup");
-    expect(welcome.getByTestId("welcome-runs-with").textContent).toBe("Runs with Codex");
+    expect(welcome.getByTestId("welcome-runs-with").textContent).toBe("Runs with Codex or Grok");
     fireEvent.click(welcome.getByRole("button", { name: "Check again" }));
     await waitFor(() => expect(api.launchChecks).toHaveBeenCalledWith(true));
   });
@@ -271,9 +273,12 @@ describe("first run", () => {
   it("spells out how to install each agent while neither is ready", async () => {
     const { render } = load(withOnboarding({}), {
       ...ALL_READY,
-      tools: ALL_READY.tools.filter((tool) => tool.tool !== "claude" && tool.tool !== "codex"),
+      tools: ALL_READY.tools.filter(
+        (tool) => tool.tool !== "claude" && tool.tool !== "codex" && tool.tool !== "grok",
+      ),
       claudeSignIn: "unknown",
       codexSignIn: "notSignedIn",
+      grokSignIn: "notSignedIn",
     });
     render();
     const welcome = within(await screen.findByTestId("welcome"));
@@ -282,22 +287,28 @@ describe("first run", () => {
     );
     expect(welcome.getByTestId("welcome-runs-with").getAttribute("data-ready")).toBe("false");
     expect(welcome.getByTestId("welcome-runs-with").textContent).toBe(
-      "Install Claude Code or Codex to start",
+      "Install Claude Code or Codex or Grok to start",
     );
-    expect(rows.map((row) => row.getAttribute("data-tool"))).toEqual(["claude", "codex"]);
+    expect(rows.map((row) => row.getAttribute("data-tool"))).toEqual(["claude", "codex", "grok"]);
     for (const row of rows) {
       expect(row.getAttribute("data-state")).toBe("missing");
-      expect(within(row).getByTestId("welcome-remedy").textContent).toContain("npm i -g");
       expect(within(row).getByRole("link", { name: /^Install/ })).toBeTruthy();
     }
+    expect(within(rows[0]!).getByTestId("welcome-remedy").textContent).toContain("npm i -g");
+    expect(within(rows[2]!).getByTestId("welcome-remedy").textContent).toContain(
+      "curl -fsSL https://x.ai/cli/install.sh",
+    );
   });
 
   it("with no agent ready, leads with installing one and calls opening a repository setup", async () => {
     const { render } = load(withOnboarding({}), {
       ...ALL_READY,
-      tools: ALL_READY.tools.filter((tool) => tool.tool !== "claude" && tool.tool !== "codex"),
+      tools: ALL_READY.tools.filter(
+        (tool) => tool.tool !== "claude" && tool.tool !== "codex" && tool.tool !== "grok",
+      ),
       claudeSignIn: "unknown",
       codexSignIn: "notSignedIn",
+      grokSignIn: "notSignedIn",
     });
     render();
     const welcome = within(await screen.findByTestId("welcome"));
@@ -310,7 +321,11 @@ describe("first run", () => {
     expect(open.className).not.toContain("bg-primary");
     // The first install is the one filled action, and the card leads the actions.
     const installs = within(agents).getAllByRole("link", { name: /^Install/ });
-    expect(installs.map((link) => link.className.includes("bg-primary"))).toEqual([true, false]);
+    expect(installs.map((link) => link.className.includes("bg-primary"))).toEqual([
+      true,
+      false,
+      false,
+    ]);
     expect(
       agents.compareDocumentPosition(welcome.getByTestId("welcome-actions")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
@@ -321,7 +336,7 @@ describe("first run", () => {
   it("with only a sign-in left, makes Check again the next step", async () => {
     const { render } = load(withOnboarding({}), {
       ...ALL_READY,
-      tools: ALL_READY.tools.filter((tool) => tool.tool !== "codex"),
+      tools: ALL_READY.tools.filter((tool) => tool.tool !== "codex" && tool.tool !== "grok"),
       claudeSignIn: "notSignedIn",
     });
     render();
@@ -344,7 +359,7 @@ describe("first run", () => {
       "listitem",
     );
     expect(welcome.getByTestId("welcome-runs-with").textContent).toBe(
-      "Runs with Claude Code or Codex",
+      "Runs with Claude Code or Codex or Grok",
     );
     expect(rows.map((row) => row.getAttribute("data-tool"))).toEqual(["gh"]);
     expect(rows[0]?.getAttribute("data-state")).toBe("optional");
@@ -381,6 +396,11 @@ describe("toolRows", () => {
         "missing",
         "Not found. Install it with `npm i -g @openai/codex@0.154.0`, then sign in with `codex login`.",
       ],
+      [
+        "grok",
+        "missing",
+        "Not found. Install it with `curl -fsSL https://x.ai/cli/install.sh | bash`, then sign in with `grok login`.",
+      ],
       ["git", "missing", "Not found on your login-shell PATH."],
       ["gh", "attention", "Not signed in. Run `gh auth login`."],
     ]);
@@ -404,6 +424,11 @@ describe("toolRows", () => {
         "missing",
         "Not found. Install it with `npm i -g @openai/codex`, then sign in with `codex login`.",
       ],
+      [
+        "grok",
+        "missing",
+        "Not found. Install it with `curl -fsSL https://x.ai/cli/install.sh | bash`, then sign in with `grok login`.",
+      ],
       ["git", "ready", "2.47.1"],
       ["gh", "optional", "Not found on your login-shell PATH."],
     ]);
@@ -423,6 +448,7 @@ describe("toolRows", () => {
     expect(rows.map((row) => [row.tool, row.state])).toEqual([
       ["claude", "optional"],
       ["codex", "ready"],
+      ["grok", "optional"],
       ["git", "ready"],
       ["gh", "optional"],
     ]);
@@ -443,6 +469,7 @@ describe("toolRows", () => {
     expect(rows.map((row) => [row.tool, row.state])).toEqual([
       ["claude", "ready"],
       ["codex", "optional"],
+      ["grok", "optional"],
       ["git", "ready"],
       ["gh", "optional"],
     ]);
@@ -484,7 +511,7 @@ describe("runsWith", () => {
     expect(words(base)).toEqual({
       ready: false,
       agents: [],
-      words: "Install Claude Code or Codex to start",
+      words: "Install Claude Code or Codex or Grok to start",
     });
     const signIn = {
       ...base,

@@ -39,6 +39,9 @@ const FIRST_RUN_COVERS: ReadonlySet<string> = new Set([
   "git-missing",
   "gh-missing",
   "gh-signed-out",
+  "grok-missing",
+  "grok-signed-out",
+  "grok-api-key",
 ]);
 
 export const firstRunCovers = (issue: LaunchIssue): boolean => FIRST_RUN_COVERS.has(issue.id);
@@ -52,7 +55,7 @@ export function launchIssues(checks: LaunchChecks): LaunchIssue[] {
   const issues: LaunchIssue[] = [];
   const claudeUnusable = checks.tools.find((t) => t.tool === "claude")?.unusable;
   // With neither agent installed nothing can start, whichever one threads or settings name.
-  const noAgent = !found("claude") && !found("codex");
+  const noAgent = !found("claude") && !found("codex") && !found("grok");
   const usesClaude =
     !noAgent &&
     (checks.localAgentsInUse === undefined || checks.localAgentsInUse.includes("claude"));
@@ -60,7 +63,7 @@ export function launchIssues(checks: LaunchChecks): LaunchIssue[] {
   if (noAgent) {
     issues.push({
       id: "agents-missing",
-      text: "Neither Claude Code nor Codex is installed, so no thread can start. Install one, sign in, then re-check.",
+      text: "Claude Code, Codex, and Grok are not installed, so no thread can start. Install one, sign in, then re-check.",
     });
   } else if (usesClaude && !found("claude")) {
     issues.push({
@@ -84,6 +87,24 @@ export function launchIssues(checks: LaunchChecks): LaunchIssue[] {
     issues.push({
       id: "claude-third-party",
       text: "Claude Code is set up for another API provider. Claude threads need your subscription sign-in.",
+    });
+  }
+
+  const usesGrok = checks.localAgentsInUse?.includes("grok") === true;
+  if (!noAgent && usesGrok && !found("grok")) {
+    issues.push({
+      id: "grok-missing",
+      text: "Grok isn't installed, so Grok threads can't start. Install it with `curl -fsSL https://x.ai/cli/install.sh | bash`, then re-check.",
+    });
+  } else if (usesGrok && checks.grokSignIn === "notSignedIn") {
+    issues.push({
+      id: "grok-signed-out",
+      text: "Grok isn't signed in. Run `grok login`, or set XAI_API_KEY, then re-check.",
+    });
+  } else if (usesGrok && checks.grokSignIn === "apiKey") {
+    issues.push({
+      id: "grok-api-key",
+      text: "Grok is using an API key. A `grok login` session is preferred; the key still starts threads.",
     });
   }
 

@@ -1,9 +1,10 @@
 import type { AgentKind } from "@gram/contracts";
 
 /**
- * The agent kinds that may orchestrate, work and dream, which is one list for all three roles.
- * Mirrors the server's `ADMITTED` in `packages/server/src/orchestration/rules.ts`, which is the
- * authority: a pick outside it is refused there. Kept here, and only here, so the pickers don't
- * offer what would be refused.
+ * Agents that may orchestrate and work. Mirrors `ADMITTED` in
+ * `packages/server/src/orchestration/rules.ts` for those roles. Dreams use `DREAM_AGENTS`.
  */
-export const ADMITTED_AGENTS: readonly AgentKind[] = ["claude", "codex"];
+export const ADMITTED_AGENTS: readonly AgentKind[] = ["claude", "codex", "grok"];
+
+/** Agents a memory update may run on. Grok has no memory-update mode. */
+export const DREAM_AGENTS: readonly AgentKind[] = ["claude", "codex"];

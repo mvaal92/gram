@@ -104,7 +104,7 @@ describe("launchIssues", () => {
     expect(launchIssues(neither)).toEqual([
       {
         id: "agents-missing",
-        text: "Neither Claude Code nor Codex is installed, so no thread can start. Install one, sign in, then re-check.",
+        text: "Claude Code, Codex, and Grok are not installed, so no thread can start. Install one, sign in, then re-check.",
       },
     ]);
   });

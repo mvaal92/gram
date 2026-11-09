@@ -6,6 +6,7 @@
  * - Claude: the `claude` icon of simple-icons 16.32.0 (CC0-1.0).
  * - OpenAI: the `openai` icon of simple-icons 15.22.0 (CC0-1.0), the last release to carry it;
  *   16.0.0 dropped it, so it can't be refreshed from there.
+ * - Grok: an original geometric G on this grid. It is not the xAI mark.
  *
  * The licences cover the drawings. The marks stay their owners' trademarks, used here only to say
  * which agent a thread runs on.
@@ -41,6 +42,14 @@ export function OpenAiMark(props: AgentMarkProps) {
   return (
     <Mark {...props}>
       <path d={OPENAI} />
+    </Mark>
+  );
+}
+
+export function GrokMark(props: AgentMarkProps) {
+  return (
+    <Mark {...props}>
+      <path d="M12 2.5a9.5 9.5 0 1 0 6.7 16.2l-1.8-1.8A7 7 0 1 1 12 5a7 7 0 0 1 4.9 2H12v3h8.2A9.5 9.5 0 0 0 12 2.5Z" />
     </Mark>
   );
 }

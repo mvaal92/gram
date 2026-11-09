@@ -84,6 +84,8 @@ export function bindingLabel(runtime: AgentRuntime): string {
       return `Agent SDK ${bindingVersion}, paired with Claude Code ${cliVersion}`;
     case "codex-protocol":
       return `app-server protocol generated from Codex ${cliVersion}`;
+    case "grok-cli":
+      return `Grok CLI ${cliVersion}`;
   }
 }
 

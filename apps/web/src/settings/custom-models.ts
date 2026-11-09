@@ -1,7 +1,7 @@
 import type { AgentKind, CustomModel, ModelSuggestion } from "@gram/contracts";
 
-/** The two supported harnesses a new custom model can be added for. */
-export const CUSTOM_MODEL_AGENTS = ["claude", "codex"] as const satisfies AgentKind[];
+/** Harnesses a new custom model can be added for. */
+export const CUSTOM_MODEL_AGENTS = ["claude", "codex", "grok"] as const satisfies AgentKind[];
 export type CustomModelAgent = (typeof CUSTOM_MODEL_AGENTS)[number];
 
 export const isCustomModelAgent = (agent: string): agent is CustomModelAgent =>

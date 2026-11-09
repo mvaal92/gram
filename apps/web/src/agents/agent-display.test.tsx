@@ -4,13 +4,13 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { AGENT_DISPLAY, AgentIcon, agentLabel } from "./agent-display";
 import { AGENT_LABEL, agentLabel as pureAgentLabel } from "./agent-label";
-import { ClaudeMark, OpenAiMark } from "./agent-marks";
+import { ClaudeMark, GrokMark, OpenAiMark } from "./agent-marks";
 
 afterEach(cleanup);
 
 describe("agentLabel", () => {
   it("names every agent kind, and passes an unknown one through", () => {
-    expect(Object.keys(AGENT_DISPLAY)).toEqual(["claude", "codex"]);
+    expect(Object.keys(AGENT_DISPLAY)).toEqual(["claude", "codex", "grok"]);
     expect(agentLabel("codex")).toBe("Codex");
     expect(agentLabel("claude")).toBe("Claude Code");
     expect(agentLabel("unknown-agent")).toBe("unknown-agent");
@@ -36,6 +36,7 @@ describe("AGENT_DISPLAY", () => {
   it("draws Claude Code with Claude's mark and Codex with OpenAI's, the one asset each", () => {
     expect(AGENT_DISPLAY.claude.icon).toBe(ClaudeMark);
     expect(AGENT_DISPLAY.codex.icon).toBe(OpenAiMark);
+    expect(AGENT_DISPLAY.grok.icon).toBe(GrokMark);
   });
 });
 
@@ -43,7 +44,7 @@ describe("AgentIcon", () => {
   it("draws each kind its own mark, in the text colour", () => {
     const drawn = Object.keys(AGENT_DISPLAY).map((agent) => drawing(agent).innerHTML);
     expect(new Set(drawn).size).toBe(drawn.length);
-    for (const agent of ["claude", "codex"]) {
+    for (const agent of ["claude", "codex", "grok"]) {
       const svg = drawing(agent);
       expect(svg.getAttribute("fill")).toBe("currentColor");
       expect(svg.getAttribute("viewBox")).toBe("0 0 24 24");

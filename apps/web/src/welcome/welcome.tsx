@@ -652,7 +652,9 @@ function Readiness({ lead = false }: { lead?: boolean }) {
   // Leading the card, its first install is the primary action; with an agent installed and only
   // its sign-in to do (the line says "Sign in to …"), which happens in a terminal, Check again is.
   const signIn = rows.some(
-    (row) => (row.tool === "claude" || row.tool === "codex") && row.state === "attention",
+    (row) =>
+      (row.tool === "claude" || row.tool === "codex" || row.tool === "grok") &&
+      row.state === "attention",
   );
   const primary =
     lead && !signIn ? rows.find((row) => row.installUrl !== undefined)?.tool : undefined;
@@ -732,7 +734,7 @@ function ToolLine({ row, primary = false }: { row: ToolRow; primary?: boolean })
         }
       >
         {/* An agent by its own mark; the GitHub CLI by what it is for, git by its branches. */}
-        {row.tool === "claude" || row.tool === "codex" ? (
+        {row.tool === "claude" || row.tool === "codex" || row.tool === "grok" ? (
           <AgentIcon agent={row.tool} className="size-icon-row" />
         ) : row.tool === "gh" ? (
           <GitPullRequest aria-hidden className="size-icon-row" />

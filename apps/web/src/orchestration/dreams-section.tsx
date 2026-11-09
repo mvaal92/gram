@@ -39,7 +39,7 @@ import { StatePill } from "@/thread/orchestration-cards";
 import { diffStat, lineDiff, usd } from "@/thread/orchestration-model";
 import { useCostShown } from "@/usage/cost";
 
-import { ADMITTED_AGENTS } from "./admitted";
+import { DREAM_AGENTS } from "./admitted";
 import {
   adoptState,
   backlogSuggestion,
@@ -465,12 +465,12 @@ function StartFlow({
         </label>
         <ExpandPresence open={ownModel}>
           <div data-testid="dream-model" className="flex flex-wrap items-center gap-2 pt-1">
-            <AgentFields value={choice} onChange={setChoice} allowed={ADMITTED_AGENTS} />
+            <AgentFields value={choice} onChange={setChoice} allowed={DREAM_AGENTS} />
           </div>
           <p className="pt-1 text-muted-foreground">
-            A memory update runs on {ADMITTED_AGENTS.map(agentLabel).join(", ")}. The transcripts
-            are read by the model you pick: through your gateway for a gateway profile, else where
-            your sessions already went.
+            A memory update runs on {DREAM_AGENTS.map(agentLabel).join(", ")}. The transcripts are
+            read by the model you pick: through your gateway for a gateway profile, else where your
+            sessions already went.
           </p>
         </ExpandPresence>
         <HarnessPreflightNote

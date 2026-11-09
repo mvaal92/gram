@@ -38,7 +38,7 @@ export const mockStartsFresh = (): boolean => flag(MOCK_FRESH_KEY) === "1";
 /** Comma-separated agents with a registered adapter, e.g. `"claude,codex"`. */
 export const MOCK_AGENTS_KEY = "gram.mock.agents";
 
-const AGENT_KINDS = ["claude", "codex"] as const satisfies readonly AgentKind[];
+const AGENT_KINDS = ["claude", "codex", "grok"] as const satisfies readonly AgentKind[];
 
 /** The agents `MOCK_AGENTS_KEY` names; only an absent flag uses default fixtures. */
 export const mockAgents = (): readonly AgentKind[] | undefined => {
