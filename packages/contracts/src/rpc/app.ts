@@ -8,7 +8,7 @@ import { ServerEvent } from "../events.ts";
 import { ComposedIssue, FiledIssue, IssueDraft } from "../issues.ts";
 import { LaunchChecks } from "../launch-checks.ts";
 import { SelectedHarnessSupport } from "../agent-support.ts";
-import { ModelRef } from "../domain.ts";
+import { AgentKind, ModelRef } from "../domain.ts";
 import { ThreadId } from "../ids.ts";
 import { OpenExternalPayload } from "../ports.ts";
 import { PositiveInt, errors } from "./shared.ts";
@@ -46,6 +46,8 @@ export const ServerHandshake = Schema.Struct({
   /** The commit it was built from, where it knows it. */
   build: Schema.optionalKey(Schema.String),
   rpcs: Schema.Array(Schema.String),
+  /** Optional agents this server also admits as orchestrators and workers (`GRAM_ROLE_AGENTS`). */
+  roleAgents: Schema.optionalKey(Schema.Array(AgentKind)),
 });
 export type ServerHandshake = typeof ServerHandshake.Type;
 

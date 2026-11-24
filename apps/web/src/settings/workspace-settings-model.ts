@@ -409,6 +409,8 @@ export interface WorkerModelContext {
    * one that couldn't list any. An agent left out hasn't answered yet.
    */
   readonly ownModels?: Partial<Record<AgentKind, readonly string[] | null>> | undefined;
+  /** Optional role agents admitted beside Claude Code and Codex. */
+  readonly roleAgents?: readonly AgentKind[] | undefined;
 }
 
 /** Local entries use the local CLI; only an explicit profile uses a gateway. Warn without blocking saves. */
@@ -419,6 +421,7 @@ export const workerModelIssues = (
   context: WorkerModelContext = {},
 ): readonly WorkerModelIssue[] => {
   const { profiles, ownModels } = context;
+  const admitted = admittedAgents(context.roleAgents ?? useEmbedShell.getState().roleAgents);
   const lists = (
     profile: NonNullable<WorkerModelContext["profiles"]>[number],
     model: PinnedWorkerModel,
@@ -426,7 +429,7 @@ export const workerModelIssues = (
     (profile.models ?? []).some((each) => each.id === model.model) ||
     (context.customModels?.[model.agent] ?? []).includes(model.model);
   return (charter.workerModels ?? []).flatMap((model, index): WorkerModelIssue[] => {
-    if (!admittedAgents(useEmbedShell.getState().roleAgents).includes(model.agent)) {
+    if (!admitted.includes(model.agent)) {
       return [{ index, message: "This agent can't run as a worker, so a spawn on it is refused." }];
     }
     const name = agentLabel(model.agent);

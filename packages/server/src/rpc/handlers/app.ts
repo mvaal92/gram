@@ -21,6 +21,7 @@ import { ServerLog, type ServerLogShape } from "../../logging/service.ts";
 import { openExternal } from "../../ports/open-external.ts";
 import { PanePort } from "../../browser/pane-port.ts";
 import { ThreadPorts, type ThreadPortsShape } from "../../ports/service.ts";
+import { ROLE_AGENTS } from "../../orchestration/role-agents.ts";
 import { ThreadRuntimes } from "../../runtime/thread-runtimes.ts";
 import { UsageLimitReadings } from "../../usage/limit-readings.ts";
 import type { Handlers } from "./common.ts";
@@ -140,6 +141,7 @@ export const appHandlers = Effect.gen(function* () {
     version: config.appVersion ?? DEV_VERSION,
     ...(config.appBuild === undefined ? {} : { build: config.appBuild }),
     rpcs: [...GramRpcs.requests.keys()],
+    ...(ROLE_AGENTS.length === 0 ? {} : { roleAgents: ROLE_AGENTS }),
   };
 
   return {

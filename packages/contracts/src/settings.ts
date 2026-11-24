@@ -798,9 +798,8 @@ export const orchestratorPeerMessaging = (settings: Settings): boolean =>
  * orchestrator's `orchestratorBrowserOn`).
  */
 export const browserUseAllowed = (settings: Pick<Settings, "agents">, agent: AgentKind): boolean =>
-  agent === "claude"
-    ? settings.agents.claudeInChrome === true
-    : settings.agents.codexComputerUse === true;
+  (agent === "claude" && settings.agents.claudeInChrome === true) ||
+  (agent === "codex" && settings.agents.codexComputerUse === true);
 /**
  * The surfaces of Codex computer use a session opened with the browser keeps: the user's Chrome
  * (the ChatGPT extension), the ChatGPT app's own browser, and Mac apps.

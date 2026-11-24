@@ -1,5 +1,6 @@
 import type {
   AgentEvent,
+  AgentFailure,
   AgentKind,
   ApprovalRequest,
   GramUIMessageChunk,
@@ -62,7 +63,12 @@ export interface AcpMapper {
    * `session/prompt` answered with `result`: the turn is over, for `stopReason`, or failed with
    * `error`.
    */
-  ended(stopReason: string | undefined, error?: string, result?: Json): ReadonlyArray<AgentEvent>;
+  ended(
+    stopReason: string | undefined,
+    error?: string,
+    result?: Json,
+    failure?: AgentFailure,
+  ): ReadonlyArray<AgentEvent>;
   /** A `session/request_permission`, shown as an approval card under `requestId`. */
   permission(requestId: RequestId, params: Json): ReadonlyArray<AgentEvent>;
   /** The card for `requestId` was answered, or its turn ended. */
@@ -259,6 +265,7 @@ export const makeAcpMapper = (options: AcpMapperOptions): AcpMapper => {
     stopReason: string | undefined,
     error?: string,
     result?: Json,
+    failure?: AgentFailure,
   ): ReadonlyArray<AgentEvent> => {
     const out: Array<AgentEvent> = [];
     const t = turn;
@@ -293,7 +300,13 @@ export const makeAcpMapper = (options: AcpMapperOptions): AcpMapper => {
     pendingUsage = undefined;
     for (const id of asked) out.push({ type: "requestResolved", requestId: id });
     asked.clear();
-    if (error !== undefined) out.push({ type: "turnEnd", reason: "error", error });
+    if (error !== undefined)
+      out.push({
+        type: "turnEnd",
+        reason: "error",
+        error,
+        ...(failure === undefined ? {} : { failure }),
+      });
     else if (interrupted) out.push({ type: "turnEnd", reason: "interrupted" });
     else if (stopReason === "max_turn_requests") out.push({ type: "turnEnd", reason: "maxTurns" });
     else if (stopReason === "refusal")

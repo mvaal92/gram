@@ -32,10 +32,15 @@ async function olderServer(options: {
   readonly handshake: boolean;
   /** Holds the handshake's answer until it is resolved. */
   readonly hold?: Deferred.Deferred<void>;
+  readonly roleAgents?: ServerHandshake["roleAgents"];
 }) {
   const tags = options.handshake ? [HANDSHAKE_TAG, "app.keptHost"] : ["app.keptHost"];
   const group = RpcGroup.make(...tags.map((tag) => GramRpcs.requests.get(tag)!));
-  const answer: ServerHandshake = { version: "1.30.0", rpcs: tags };
+  const answer: ServerHandshake = {
+    version: "1.30.0",
+    rpcs: tags,
+    ...(options.roleAgents === undefined ? {} : { roleAgents: options.roleAgents }),
+  };
   const handlers = group.toLayer({
     "app.keptHost": () => Effect.succeed(KEPT),
     "app.handshake": () =>
@@ -126,5 +131,15 @@ describe("a client against a server older than itself", () => {
     await failure(run(client["thread.savedDiff"]({ threadId: "t1" as never })));
     expect(sent).toEqual([HANDSHAKE_TAG, "thread.savedDiff", "events.subscribe"]);
     await expect(run(client["app.keptHost"](undefined))).resolves.toEqual(KEPT);
+    expect(served.roleAgents).toEqual([]);
+  });
+
+  it("carries optional roleAgents from the server handshake", async () => {
+    const { served, ready } = await olderServer({
+      handshake: true,
+      roleAgents: ["grok", "antigravity"],
+    });
+    await ready.wait;
+    expect(served.roleAgents).toEqual(["grok", "antigravity"]);
   });
 });

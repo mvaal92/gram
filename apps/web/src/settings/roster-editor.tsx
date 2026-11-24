@@ -346,6 +346,7 @@ function useWorkerModelIssues(
   charter: Parameters<typeof workerModelIssues>[0],
 ): readonly WorkerModelIssue[] {
   const api = useApi();
+  const admitted = useAdmittedAgents();
   const { data: profiles } = useQuery({
     queryKey: ["profiles"],
     queryFn: () => api.listProfiles(),
@@ -360,6 +361,7 @@ function useWorkerModelIssues(
   return workerModelIssues(charter, {
     profiles,
     customModels,
+    roleAgents: admitted,
     ownModels: {
       ...(claudeOwn === undefined ? {} : { claude: claudeOwn }),
       ...(codexOwn === undefined ? {} : { codex: codexOwn }),

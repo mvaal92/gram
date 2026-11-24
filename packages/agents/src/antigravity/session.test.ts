@@ -314,11 +314,19 @@ describe("Antigravity's models and usage", () => {
 });
 
 /** A stand-in `agy acp`: records what Gram sends and answers like the CLI does. */
-const fakeAgent = (options: { signedOut?: boolean; promptFails?: AcpError } = {}) => {
+const fakeAgent = (
+  options: {
+    signedOut?: boolean;
+    promptFails?: AcpError;
+    commands?: ReadonlyArray<Record<string, unknown>>;
+  } = {},
+) => {
   const started: Array<StartAcpAgent> = [];
   const calls: Array<{ method: string; params: Record<string, unknown> }> = [];
   let handlers: AcpHandlers | undefined;
   let authenticated = false;
+  const notifications: Array<{ method: string; params: Record<string, unknown> }> = [];
+  let onCancel: (() => void) | undefined;
   const start = (input: StartAcpAgent): AcpConnection => {
     started.push(input);
     handlers = input.handlers;
@@ -333,6 +341,14 @@ const fakeAgent = (options: { signedOut?: boolean; promptFails?: AcpError } = {}
             return { agentCapabilities: { sessionCapabilities: { resume: {} } } } as T;
           case "session/new":
           case "session/resume":
+            if (options.commands !== undefined)
+              handlers!.notification("session/update", {
+                sessionId: "new-session",
+                update: {
+                  sessionUpdate: "available_commands_update",
+                  availableCommands: options.commands,
+                },
+              });
             return SESSION_NEW as T;
           case "session/prompt": {
             if (options.promptFails !== undefined) throw options.promptFails;
@@ -340,6 +356,9 @@ const fakeAgent = (options: { signedOut?: boolean; promptFails?: AcpError } = {}
             handlers!.notification("session/update", {
               sessionId,
               update: { sessionUpdate: "usage_update", used: 9431, size: 1048576 },
+            });
+            const cancelled = new Promise<{ stopReason: string }>((resolve) => {
+              onCancel = () => resolve({ stopReason: "cancelled" });
             });
             const answer = (await handlers!.request("session/request_permission", {
               sessionId,
@@ -350,6 +369,11 @@ const fakeAgent = (options: { signedOut?: boolean; promptFails?: AcpError } = {}
               ],
             })) as Record<string, unknown>;
             calls.push({ method: "answered", params: answer });
+            if (
+              (answer["outcome"] as Record<string, unknown> | undefined)?.["outcome"] ===
+              "cancelled"
+            )
+              return (await cancelled) as T;
             return {
               stopReason: "end_turn",
               usage: { inputTokens: 100, outputTokens: 20, cachedReadTokens: 50 },
@@ -359,13 +383,16 @@ const fakeAgent = (options: { signedOut?: boolean; promptFails?: AcpError } = {}
             return {} as T;
         }
       },
-      notify: () => {},
+      notify: (method, params) => {
+        notifications.push({ method, params });
+        if (method === "session/cancel") onCancel?.();
+      },
       ended: new Promise(() => {}),
       pid: 1,
       stop: async () => {},
     };
   };
-  return { started, calls, start };
+  return { started, calls, notifications, start };
 };
 
 const hostWith = (agent: ReturnType<typeof fakeAgent>, env: Record<string, string> = {}) =>
@@ -496,6 +523,115 @@ describe("Antigravity host", () => {
     expect(events.find((event) => event.type === "turnEnd")).toMatchObject({
       reason: "error",
       error: "Internal error: quota exhausted (429)",
+      failure: {
+        kind: "rateLimit",
+        retryable: false,
+        httpStatus: 429,
+        code: "RESOURCE_EXHAUSTED",
+      },
+    });
+  });
+
+  it("classifies nested 429 RESOURCE_EXHAUSTED, transient rate limits, and auth errors", async () => {
+    const nested = new AcpError(-32603, "Internal error", {
+      error: { code: 429, status: "RESOURCE_EXHAUSTED", message: "You have exhausted your quota" },
+    });
+    const quotaEvents = await turn(fakeAgent({ promptFails: nested }));
+    expect(quotaEvents.find((event) => event.type === "turnEnd")).toMatchObject({
+      reason: "error",
+      error: "Internal error: You have exhausted your quota",
+      failure: {
+        kind: "rateLimit",
+        retryable: false,
+        httpStatus: 429,
+        code: "RESOURCE_EXHAUSTED",
+      },
+    });
+
+    const transient = new AcpError(-32603, "Rate limit exceeded (429)");
+    const transientEvents = await turn(fakeAgent({ promptFails: transient }));
+    expect(transientEvents.find((event) => event.type === "turnEnd")).toMatchObject({
+      reason: "error",
+      failure: { kind: "rateLimit", retryable: true, httpStatus: 429 },
+    });
+
+    const auth = new AcpError(-32603, "Internal error", {
+      message: "Unauthorized: token expired (401)",
+    });
+    const authEvents = await turn(fakeAgent({ promptFails: auth }));
+    expect(authEvents.find((event) => event.type === "turnEnd")).toMatchObject({
+      reason: "error",
+      error: SIGN_IN_MESSAGE,
+      failure: { kind: "auth", retryable: false, httpStatus: 401 },
+    });
+  });
+
+  it("passes MCP servers through to session/new and surfaces skills from available_commands_update", async () => {
+    const agent = fakeAgent({
+      commands: [{ name: "deploy", description: "Deploy skill", input: { hint: "env" } }],
+    });
+    const events = await turn(agent, {
+      mcp: { url: "http://127.0.0.1:4317/mcp", headers: { Authorization: "Bearer synthetic" } },
+      mcpServer: { name: "workspace", url: "https://mcp.example.test/workspace" },
+    });
+    const opened = agent.calls.find((call) => call.method === "session/new")?.params;
+    expect(opened?.["mcpServers"]).toEqual([
+      {
+        type: "http",
+        name: expect.stringMatching(/^gram[0-9a-f]{8}$/),
+        url: "http://127.0.0.1:4317/mcp",
+        headers: [{ name: "Authorization", value: "Bearer synthetic" }],
+      },
+      {
+        type: "http",
+        name: "workspace",
+        url: "https://mcp.example.test/workspace",
+        headers: [],
+      },
+    ]);
+    expect(events.find((event) => event.type === "identity")).toMatchObject({
+      commands: [{ name: "deploy", description: "Deploy skill", argumentHint: "env" }],
+    });
+    expect(events.slice(0, 2)).toEqual([
+      expect.objectContaining({ type: "identity", agentSessionId: "new-session" }),
+      { type: "status", status: "idle" },
+    ]);
+  });
+
+  it("cancels an active turn and pending approval card on interrupt", async () => {
+    const agent = fakeAgent();
+    const events = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const collected: Array<AgentEvent> = [];
+          const host = yield* hostWith(agent);
+          const session = yield* host.open({
+            threadId: ThreadId.make("t"),
+            cwd: "/work",
+            permissionMode: "default",
+          });
+          const turnEnded = yield* Deferred.make<void>();
+          const fiber = yield* Stream.runForEach(session.events, (event) =>
+            Effect.gen(function* () {
+              collected.push(event);
+              if (event.type === "request") yield* session.interrupt;
+              if (event.type === "turnEnd") yield* Deferred.succeed(turnEnded, undefined);
+            }),
+          ).pipe(Effect.forkScoped);
+          yield* session.send({ text: "go" });
+          yield* Deferred.await(turnEnded);
+          yield* Fiber.interrupt(fiber);
+          return collected;
+        }),
+      ),
+    );
+    expect(agent.notifications).toContainEqual({
+      method: "session/cancel",
+      params: { sessionId: "new-session" },
+    });
+    expect(events.some((event) => event.type === "requestResolved")).toBe(true);
+    expect(events.find((event) => event.type === "turnEnd")).toMatchObject({
+      reason: "interrupted",
     });
   });
 
@@ -503,6 +639,7 @@ describe("Antigravity host", () => {
     const agent = fakeAgent({ signedOut: true });
     const error = await turn(agent).catch((cause: unknown) => cause);
     expect(String(error)).toContain(SIGN_IN_MESSAGE);
+    expect(error).toMatchObject({ reason: "not-logged-in" });
     expect(agent.calls.map((call) => call.method)).not.toContain("authenticate");
   });
 });

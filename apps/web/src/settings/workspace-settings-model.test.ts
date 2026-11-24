@@ -269,6 +269,17 @@ describe("worker models", () => {
         unavailable: { fix: "gateways" },
       },
     ]);
+    const antigravity: ModelRef = { agent: "antigravity", model: "gemini-4-neon" };
+    const grok: ModelRef = { agent: "grok", model: "grok-4.7" };
+    expect(
+      workerModelIssues({ workerModels: [antigravity, grok] }).map((issue) => issue.index),
+    ).toEqual([0, 1]);
+    expect(
+      workerModelIssues(
+        { workerModels: [antigravity, grok] },
+        { roleAgents: ["antigravity", "grok"] },
+      ),
+    ).toEqual([]);
   });
 
   it("calls the default Sol entry unavailable while there is no gateway, and says where to fix it", () => {

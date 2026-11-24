@@ -9,6 +9,7 @@ import {
   type ThreadBrowserStatus,
   workerBrowserOn,
 } from "@gram/contracts";
+import { AGENT_NAMES } from "./agent-names.ts";
 import type { ResumeOptions } from "./history-plans.ts";
 import type { SessionPolicy } from "./session-policy.ts";
 
@@ -71,6 +72,9 @@ export const browserCannot = (
     return thread.model.profileId === undefined
       ? undefined
       : "Claude in Chrome needs a claude.ai sign-in, and this thread runs on a gateway.";
+  }
+  if (thread.model.agent !== "codex") {
+    return `${AGENT_NAMES[thread.model.agent]} doesn't use the user's browser.`;
   }
   const home = codexHomeFor({
     ...(resume.codexHome === undefined ? {} : { codexHome: resume.codexHome }),

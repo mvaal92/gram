@@ -26,6 +26,7 @@ import { HOST_MCP_PATH } from "../host/machine-keys.ts";
 import { type AttachmentsOnMachine, carryAttachments } from "../host/carry-attachments.ts";
 import type { HostSessionsConnection } from "../host/protocol.ts";
 import { AgentHosts } from "./agent-hosts.ts";
+import { AGENT_NAMES } from "./agent-names.ts";
 import { InputUndelivered } from "./undelivered.ts";
 
 /** The event a session whose host went ends with. */
@@ -601,8 +602,7 @@ export const onMachineUnavailable = (
   error: AgentUnavailable,
   machine: string,
 ): AgentUnavailable => {
-  const agent =
-    error.agent === "claude" ? "Claude Code" : error.agent === "codex" ? "Codex" : error.agent;
+  const agent = AGENT_NAMES[error.agent];
   const message = (() => {
     if (error.agent === "codex")
       switch (error.reason) {
@@ -615,6 +615,16 @@ export const onMachineUnavailable = (
             ? error.message
             : `On ${machine}: ${error.message}`;
       }
+    if (error.agent === "grok" || error.agent === "antigravity") {
+      if (error.reason === "not-logged-in") {
+        const command = error.agent === "grok" ? "`grok login`" : "`agy`";
+        return `${agent} isn't signed in on ${machine}. Run ${command} there and sign in.`;
+      }
+      return error.message.includes(machine) ? error.message : `On ${machine}: ${error.message}`;
+    }
+    if (error.agent === "opencode") {
+      return error.message.includes(machine) ? error.message : `On ${machine}: ${error.message}`;
+    }
     switch (error.reason) {
       case "not-logged-in":
         return `${agent} isn't logged in on ${machine}. Run \`claude /login\` there, or choose Sign in under Settings → Machines.`;

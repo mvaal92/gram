@@ -1,6 +1,7 @@
 import {
   AgentUnavailable,
   type AgentCapabilities,
+  type AgentFailure,
   type AgentKind,
   type MessageId,
   type ModelRef,
@@ -9,6 +10,7 @@ import {
 } from "@gram/contracts";
 import type * as Effect from "effect/Effect";
 
+import { httpFailure } from "../failure.ts";
 import type { AgentConnectors, OpenSessionOptions, OutwardGate } from "../host.ts";
 import { AcpError, type AcpConnection, type StartAcpAgent } from "./connection.ts";
 import { type Json, record } from "./json.ts";
@@ -120,8 +122,19 @@ const DETAIL_LIMIT = 500;
 
 const detailOf = (error: unknown): string | undefined => {
   if (!(error instanceof AcpError)) return undefined;
-  const raw = typeof error.data === "string" ? error.data : record(error.data)["message"];
-  if (typeof raw !== "string") return undefined;
+  const data = record(error.data);
+  const nested = record(data["error"]);
+  const raw =
+    typeof error.data === "string"
+      ? error.data
+      : typeof data["message"] === "string"
+        ? data["message"]
+        : typeof nested["message"] === "string"
+          ? nested["message"]
+          : typeof data["details"] === "string"
+            ? data["details"]
+            : undefined;
+  if (raw === undefined) return undefined;
   const detail = raw.trim().slice(0, DETAIL_LIMIT);
   return detail === "" || detail === error.message ? undefined : detail;
 };
@@ -132,6 +145,34 @@ export const messageOf = (error: unknown): string => {
   return detail === undefined ? baseMessageOf(error) : `${baseMessageOf(error)}: ${detail}`;
 };
 
+const HTTP_STATUS_RE =
+  /(?:\bHTTP\s*|\bstatus[:\s]+|\()(401|403|404|408|429|500|502|503|504|529)\b/i;
+const QUOTA_RE = /RESOURCE_EXHAUSTED|quota|usage limit|exhausted.*capacity|capacity.*exhausted/i;
+const RATE_LIMIT_RE = /rate[ -]?limit|too many requests|overloaded/i;
+const MODEL_UNAVAILABLE_RE = /model.*not found|unknown model|unsupported model/i;
+
+const httpStatusOf = (error: unknown, combined: string): number | undefined => {
+  if (error instanceof AcpError) {
+    const data = record(error.data);
+    const nested = record(data["error"]);
+    for (const candidate of [data["httpStatus"], data["status"], data["code"], nested["code"]]) {
+      if (typeof candidate === "number" && candidate >= 400 && candidate < 600) return candidate;
+    }
+  }
+  const matched = HTTP_STATUS_RE.exec(combined);
+  return matched === null ? undefined : Number(matched[1]);
+};
+
+const errorCodeOf = (error: unknown): string | undefined => {
+  if (!(error instanceof AcpError)) return undefined;
+  const data = record(error.data);
+  const nested = record(data["error"]);
+  for (const candidate of [nested["status"], data["status"], data["code"]]) {
+    if (typeof candidate === "string" && candidate.trim() !== "") return candidate.trim();
+  }
+  return undefined;
+};
+
 /** What an agent's error says when it has no usable sign-in. */
 export const SIGN_IN_PATTERN = /auth|sign[ -]?in|log ?in|unauthori[sz]ed|credential|token expired/i;
 
@@ -139,13 +180,53 @@ export const SIGN_IN_PATTERN = /auth|sign[ -]?in|log ?in|unauthori[sz]ed|credent
 export const signInProblem = (spec: AcpAgentSpec, message: string): boolean =>
   (spec.signInPattern ?? SIGN_IN_PATTERN).test(message);
 
+/** Structured failure classification for an ACP prompt error, including 429 and quota exhaustion. */
+export const acpTurnFailure = (spec: AcpAgentSpec, error: unknown): AgentFailure => {
+  const combined = messageOf(error);
+  const httpStatus = httpStatusOf(error, combined);
+  const code = errorCodeOf(error);
+  if (signInProblem(spec, combined)) {
+    return {
+      kind: "auth",
+      retryable: false,
+      ...(httpStatus === undefined ? {} : { httpStatus }),
+      ...(code === undefined ? {} : { code }),
+    };
+  }
+  if (QUOTA_RE.test(combined) || code === "RESOURCE_EXHAUSTED") {
+    return {
+      kind: "rateLimit",
+      retryable: false,
+      httpStatus: httpStatus ?? 429,
+      code: code ?? "RESOURCE_EXHAUSTED",
+    };
+  }
+  if (RATE_LIMIT_RE.test(combined)) {
+    return {
+      kind: "rateLimit",
+      retryable: true,
+      httpStatus: httpStatus ?? 429,
+      ...(code === undefined ? {} : { code }),
+    };
+  }
+  if (MODEL_UNAVAILABLE_RE.test(combined)) {
+    return {
+      kind: "modelUnavailable",
+      retryable: false,
+      ...(httpStatus === undefined ? {} : { httpStatus }),
+      ...(code === undefined ? {} : { code }),
+    };
+  }
+  return httpFailure(httpStatus, combined, code);
+};
+
 /** A failure of `spec`'s agent, read as a sign-in problem where its own message says so. */
 export const acpFailure = (spec: AcpAgentSpec, what: string, error: unknown) => {
+  const signedOut = signInProblem(spec, messageOf(error));
   return new AgentUnavailable({
     agent: spec.kind,
-    message: signInProblem(spec, baseMessageOf(error))
-      ? spec.signInMessage
-      : `${what}: ${messageOf(error)}`,
+    ...(signedOut ? { reason: "not-logged-in" as const } : {}),
+    message: signedOut ? spec.signInMessage : `${what}: ${messageOf(error)}`,
   });
 };
 
