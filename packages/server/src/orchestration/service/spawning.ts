@@ -79,6 +79,7 @@ import type { HeldSpawns } from "./held-spawns.ts";
 import { spawnRecheckRefusal } from "./spawn-recheck.ts";
 import { type HomeWorker, readHomeProfile } from "../../thread-profiles/home.ts";
 import { makeOwnFolder } from "../../thread-profiles/own-folder.ts";
+import { AGENT_NAMES } from "../../runtime/agent-names.ts";
 import { makeThreadId } from "../../runtime/runtime-state.ts";
 
 const spawnedResult = (
@@ -346,12 +347,7 @@ export const makeSpawning = (kit: OrchestrationKit, deps: SpawningDeps) => {
     if (hostId === undefined) return undefined;
     const machine = joinedMachines().find((m) => m.id === hostId);
     if (machine?.via === undefined) return undefined;
-    const rows =
-      chosen.agent === "codex"
-        ? machine.codex?.models
-        : chosen.agent === "opencode"
-          ? machine.opencode?.models
-          : machine.models;
+    const rows = placedModelsOf(machine, chosen.agent);
     return rows === undefined ? undefined : pinRefusal(machine.name, rows, named, chosen);
   };
   const admitMachineModel = (tool: string, hostId: HostId | undefined, chosen: ModelRef) =>
@@ -921,7 +917,9 @@ export const makeSpawning = (kit: OrchestrationKit, deps: SpawningDeps) => {
               : !workerBrowserOn(settings)
                 ? "The user hasn't let workers use their browser (Settings › Workspaces), so this worker runs without it."
                 : !browserUseAllowed(settings, model.agent)
-                  ? `${model.agent === "claude" ? "Claude in Chrome" : "Codex computer use"} is off in Settings › Agents, so this worker runs without the browser.`
+                  ? model.agent === "claude" || model.agent === "codex"
+                    ? `${model.agent === "claude" ? "Claude in Chrome" : "Codex computer use"} is off in Settings › Agents, so this worker runs without the browser.`
+                    : `${AGENT_NAMES[model.agent]} doesn't use the user's browser, so this worker runs without it.`
                   : model.agent === "codex" &&
                       gateOfAutonomy(autonomyOf(state.charter)) !== undefined
                     ? "Codex computer use isn't available under this workspace's outward gate, so this worker runs without the browser."

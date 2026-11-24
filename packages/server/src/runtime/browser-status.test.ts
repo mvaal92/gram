@@ -80,6 +80,29 @@ describe("browserStatus", () => {
     expect(browserStatus(claude, allOn, { outwardGate: undefined }, {})).toEqual({ state: "off" });
   });
 
+  it("says Antigravity and Grok Build don't use the user's browser instead of falling through to Codex", () => {
+    const antigravity = { model: { agent: "antigravity" as const, model: "gemini-4-neon" } };
+    const grok = { model: { agent: "grok" as const, model: "grok-4.7" } };
+    expect(browserStatus(antigravity, allOn, { outwardGate: undefined }, {})).toEqual({
+      state: "off",
+      cannot: "Antigravity doesn't use the user's browser.",
+    });
+    expect(
+      browserStatus({ ...antigravity, browser: true }, allOn, { outwardGate: undefined }, {}),
+    ).toEqual({
+      state: "unavailable",
+      why: "Antigravity doesn't use the user's browser.",
+      cannot: "Antigravity doesn't use the user's browser.",
+    });
+    expect(
+      browserStatus({ ...grok, browser: true }, allOn, { outwardGate: undefined }, {}),
+    ).toEqual({
+      state: "unavailable",
+      why: "Grok Build doesn't use the user's browser.",
+      cannot: "Grok Build doesn't use the user's browser.",
+    });
+  });
+
   it("says held, and which consent, when the grant is lent but not allowed", () => {
     expect(
       browserStatus({ ...claude, browser: true }, DEFAULT_SETTINGS, { outwardGate: undefined }, {}),

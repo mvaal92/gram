@@ -62,6 +62,7 @@ import { withOwnedBranch } from "../../git/worker-pr.ts";
 import { makeKeyedLock, type KeyedLock } from "../../git/keyed-lock.ts";
 import { ThreadStore } from "../../persistence/thread-store.ts";
 import { AgentHosts } from "../../runtime/agent-hosts.ts";
+import { AGENT_NAMES } from "../../runtime/agent-names.ts";
 import { makeThreadCreator } from "../../runtime/create-in-checkout.ts";
 import { CheckoutService } from "../../runtime/hooks.ts";
 import { availableHere } from "../../runtime/model-slots.ts";
@@ -408,9 +409,14 @@ const NO_AUTHORITY =
 
 export const toolError = (tool: string, message: string) => new AppToolError({ tool, message });
 
-/** The adapter's word on whether `kind`'s outward gate holds in `mode`; Claude's hook asks in every mode. */
+/**
+ * The adapter's word on whether `kind`'s outward gate holds in `mode`: Claude's hook and the ACP
+ * adapters (`grok`, `antigravity`) ask in every mode; Codex asks outside `dontAsk`.
+ */
 export const gateHoldsIn = (kind: AgentKind, mode: PermissionMode): boolean =>
-  kind === "codex" ? codexGateHoldsInMode(mode) : kind === "claude";
+  kind === "codex"
+    ? codexGateHoldsInMode(mode)
+    : kind === "claude" || kind === "grok" || kind === "antigravity";
 
 export const clipped = (text: string, max: number): string =>
   text.length <= max ? text : `${text.slice(0, max - 1)}…`;
@@ -713,23 +719,14 @@ export const makeOrchestrationKit = Effect.gen(function* () {
           continue;
         }
         const machineList =
-          entry.agent === "claude"
-            ? placed
-            : entry.agent === "codex"
-              ? placedCodex
-              : placedOpenCode;
+          entry.agent === "claude" ? placed : placedMachine?.[entry.agent]?.models;
         if (
           machineList !== undefined &&
           !("tier" in stored) &&
           entry.profileId === undefined &&
           hostListing(machineList, entry.model) === undefined
         ) {
-          const cli =
-            entry.agent === "claude"
-              ? "Claude Code"
-              : entry.agent === "codex"
-                ? "Codex"
-                : "OpenCode";
+          const cli = AGENT_NAMES[entry.agent];
           roster.push(entry);
           unavailable.set(
             index,

@@ -44,9 +44,11 @@ import {
 import { UNKNOWN_FAILURE } from "./thread-error.ts";
 import { accountOf, machineAccountScope } from "./limit-wait.ts";
 import { renderLostSession, renderMovedSession } from "./switch-handoff.ts";
+import { AGENT_NAMES } from "./agent-names.ts";
 import { recentTurnsOf } from "./recent-turns.ts";
 
-const agentName = (agent: AgentKind): string => (agent === "codex" ? "Codex" : "Claude");
+const agentName = (agent: AgentKind): string =>
+  agent === "claude" ? "Claude" : AGENT_NAMES[agent];
 import { dreamSupportFor, sequenceEvents, type AppToolRegistryPort } from "@gram/agents";
 import type { ResumeOptions, ResumePlans } from "./history-plans.ts";
 import { dreamRolePromptFor } from "../orchestration/dream-prompt.ts";

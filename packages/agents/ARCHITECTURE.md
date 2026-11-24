@@ -2,8 +2,10 @@
 
 [Up: Gram architecture](../../docs/ARCHITECTURE.md) · [Agent permissions](../../docs/AGENTS_AND_FEATURES.md)
 
-Adapters run the developer's installed Claude Code/Codex CLIs with their own
-logins; explicitly configured gateways remain optional. Codex and Claude Code are the only executable harnesses.
+Adapters run the developer's installed Claude Code, Codex, OpenCode, Grok Build and Antigravity
+CLIs with their own logins; explicitly configured gateways remain optional for the harnesses that
+support them. Claude Code and Codex take every orchestration role by default; deployments may also
+admit Grok Build and Antigravity to orchestrator and worker roles through `GRAM_ROLE_AGENTS`.
 Shared utilities discover and execute CLIs without choosing authentication.
 This page owns package implementation navigation; permission/support qualification
 belongs to the linked product guide.

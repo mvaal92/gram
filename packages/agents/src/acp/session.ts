@@ -18,7 +18,7 @@ import type { AgentSession, OpenSessionOptions } from "../host.ts";
 import { gateLevel } from "../outward.ts";
 import {
   acpFailure,
-  baseMessageOf,
+  acpTurnFailure,
   INITIALIZE_PARAMS,
   messageOf,
   signInProblem,
@@ -221,6 +221,7 @@ export const openAcpSession = (
 
     identity = { type: "identity", agentSessionId: id, model: controls.model, tools: [], commands };
     Queue.offerUnsafe(events, identity);
+    Queue.offerUnsafe(events, { type: "status", status: "idle" });
 
     let turn: Promise<void> | undefined;
     const prompt = (input: UserInput) => {
@@ -236,10 +237,13 @@ export const openAcpSession = (
           emit(current.ended(text(record(result)["stopReason"]), undefined, record(result)));
         })
         .catch((error: unknown) => {
+          const message = messageOf(error);
           emit(
             current.ended(
               undefined,
-              signInProblem(spec, baseMessageOf(error)) ? spec.signInMessage : messageOf(error),
+              signInProblem(spec, message) ? spec.signInMessage : message,
+              undefined,
+              acpTurnFailure(spec, error),
             ),
           );
         });

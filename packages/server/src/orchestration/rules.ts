@@ -469,6 +469,8 @@ export const rosterNames = (
     })
     .join(", ");
 
+const AGENT_PREFIX = new RegExp(`^(${AgentKind.literals.join("|")}):(.*)$`, "i");
+
 /**
  * The roster entry `named` most likely meant, for a refusal's "did you mean": by its name, its
  * model id, or the name the picker shows it by, with or without an `agent:` in front.
@@ -478,7 +480,7 @@ export const closestWorkerModel = (
   named: string,
   catalogue?: RosterCatalogue,
 ): string | undefined => {
-  const prefixed = /^(claude|codex):(.*)$/i.exec(named.trim());
+  const prefixed = AGENT_PREFIX.exec(named.trim());
   const agent = prefixed?.[1]?.toLowerCase();
   const candidates = allowed
     .filter((each) => agent === undefined || each.agent === agent)
@@ -736,7 +738,7 @@ export const rosterText = (
 
 /** An agent kind as prose names it. */
 export const kindName = (kind: AgentKind): string =>
-  kind === "claude" ? "Claude" : kind === "codex" ? "Codex" : kind;
+  kind === "claude" ? "Claude" : AGENT_NAMES[kind];
 
 export type WorkerModelVerdict =
   | { readonly ok: true }

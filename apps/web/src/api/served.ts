@@ -1,4 +1,4 @@
-import { GramRpcs, NotImplemented, type ServerHandshake } from "@gram/contracts";
+import { GramRpcs, NotImplemented, type AgentKind, type ServerHandshake } from "@gram/contracts";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import type * as RpcGroup from "effect/rpc/RpcGroup";
@@ -19,6 +19,8 @@ export interface ServedRpcs {
   serves(tag: GramRpcTag): boolean;
   /** Gram's version on the server, once its handshake has answered. */
   readonly version: string | undefined;
+  /** Optional agents the server admits as orchestrators and workers (`GRAM_ROLE_AGENTS`). */
+  readonly roleAgents: readonly AgentKind[];
   /** Told when what is served changes: the handshake answered, or a tag was refused. */
   subscribe(listener: () => void): () => void;
 }
@@ -30,10 +32,13 @@ export interface ServedRecord extends ServedRpcs {
   refused(tag: string): void;
 }
 
+const EMPTY_ROLE_AGENTS: readonly AgentKind[] = [];
+
 export function createServed(): ServedRecord {
   let known: ReadonlySet<string> | undefined;
   const refused = new Set<string>();
   let version: string | undefined;
+  let roleAgents: readonly AgentKind[] = EMPTY_ROLE_AGENTS;
   const listeners = new Set<() => void>();
   const changed = () => {
     for (const listener of listeners) listener();
@@ -43,6 +48,9 @@ export function createServed(): ServedRecord {
     get version() {
       return version;
     },
+    get roleAgents() {
+      return roleAgents;
+    },
     subscribe: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -50,6 +58,7 @@ export function createServed(): ServedRecord {
     answered: (handshake) => {
       known = new Set(handshake.rpcs);
       version = handshake.version;
+      roleAgents = handshake.roleAgents ?? EMPTY_ROLE_AGENTS;
       refused.clear();
       changed();
     },
