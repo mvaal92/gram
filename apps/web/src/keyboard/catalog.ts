@@ -180,6 +180,7 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
     label: "Conversation only",
     group: "Navigation",
   },
+  { id: "view.companion", keys: "mod+alt+6", label: "Companion mode", group: "Navigation" },
   { id: "view.back", keys: "escape", label: "Back to Chat", group: "Navigation" },
   { id: "quiet.leave", keys: "escape", label: "Leave Focus", group: "Navigation" },
   { id: "worker.back", keys: "escape", label: "Back to the orchestrator", group: "Navigation" },

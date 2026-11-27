@@ -446,6 +446,7 @@ export async function simulateRealistic(core: MockCoreScenes): Promise<MockReali
     runtime.summary = { ...runtime.summary, activity };
     core.setStatus(runtime, "running", activity);
   }
+  await seedRunheimStartedThread(core, REALISTIC_FOLDERS.gram);
   for (const id of ["Q1", "Q3"]) {
     core.dreams.editQuestions(made.workspaceId, (current) =>
       closeQuestion(
@@ -470,3 +471,21 @@ export const calmSeeds = <T extends { status: string; pendingRequests: readonly 
       ? summary
       : { ...summary, status: "idle", pendingRequests: [] },
   );
+
+async function seedRunheimStartedThread(core: MockCoreScenes, projectRoot: string): Promise<void> {
+  const thread = await core.mock.createThread({
+    projectRoot,
+    checkout: { kind: "current" },
+    title: "Draft the 1.0 changelog",
+  });
+  const runtime = core.runtime(thread.id);
+  runtime.summary = {
+    ...runtime.summary,
+    thread: {
+      ...runtime.summary.thread,
+      conversations: [{ id: "run-release-notes", label: "Runheim · release run" }],
+      lastActivityAt: Date.now() - 3 * 60_000,
+    },
+  };
+  core.emit({ type: "thread.upsert", thread: runtime.summary.thread });
+}
