@@ -3,7 +3,7 @@
   "slug": "companion-mode",
   "status": "draft",
   "template": "options",
-  "current": 2,
+  "current": 3,
   "approved": 1,
   "versions": [
     {
@@ -15,47 +15,44 @@
       "n": 2,
       "file": "v2.html",
       "created": "2026-11-27"
+    },
+    {
+      "n": 3,
+      "file": "v3.html",
+      "created": "2026-11-27"
     }
   ],
   "directions": [
     {
-      "name": "Calm icon",
-      "board": "resting",
+      "name": "Hover hint",
+      "board": "hover-hint",
       "shots": {
-        "dark": "shots/resting-dark.png",
-        "light": "shots/resting-light.png"
+        "dark": "shots/v3-hover-hint-dark.png",
+        "light": "shots/v3-hover-hint-light.png"
+      }
+    },
+    {
+      "name": "Drag and snap",
+      "board": "drag-and-snap",
+      "shots": {
+        "dark": "shots/v3-drag-and-snap-dark.png",
+        "light": "shots/v3-drag-and-snap-light.png"
+      }
+    },
+    {
+      "name": "Opens toward room",
+      "board": "opens-toward-room",
+      "shots": {
+        "dark": "shots/v3-opens-toward-room-dark.png",
+        "light": "shots/v3-opens-toward-room-light.png"
       }
     },
     {
       "name": "Glass dropdown",
       "board": "glass-dropdown",
       "shots": {
-        "dark": "shots/glass-dropdown-dark.png",
-        "light": "shots/glass-dropdown-light.png"
-      }
-    },
-    {
-      "name": "Auto drop",
-      "board": "auto-drop",
-      "shots": {
-        "dark": "shots/auto-drop-dark.png",
-        "light": "shots/auto-drop-light.png"
-      }
-    },
-    {
-      "name": "Skin picker",
-      "board": "skin-picker",
-      "shots": {
-        "dark": "shots/skin-picker-dark.png",
-        "light": "shots/skin-picker-light.png"
-      }
-    },
-    {
-      "name": "Skin import",
-      "board": "skin-import",
-      "shots": {
-        "dark": "shots/skin-import-dark.png",
-        "light": "shots/skin-import-light.png"
+        "dark": "shots/v3-glass-dropdown-dark.png",
+        "light": "shots/v3-glass-dropdown-light.png"
       }
     }
   ]
