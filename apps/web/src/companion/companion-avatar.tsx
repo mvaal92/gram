@@ -31,6 +31,7 @@ import {
   type Placement,
   type Point,
 } from "./companion-position";
+import { faceOf, PEBBLE, skinStyle } from "./companion-skin";
 import { useCompanion } from "./companion-store";
 
 const STATE_WORDS: Record<AvatarState, string> = {
@@ -232,7 +233,10 @@ function Presence({
       data-edge={dock.edge}
       data-dragging={dragging !== undefined || undefined}
       className="companion-anchor absolute"
-      style={dragging === undefined ? dockStyle(dock) : { left: dragging.x, top: dragging.y }}
+      style={{
+        ...skinStyle(PEBBLE, faceOf(PEBBLE, state, asks)),
+        ...(dragging === undefined ? dockStyle(dock) : { left: dragging.x, top: dragging.y }),
+      }}
     >
       <Avatar
         state={state}
@@ -276,7 +280,7 @@ function Presence({
                     setOpen(true);
                   }}
                   className={cn(
-                    "companion-glass companion-drop max-w-64 rounded-xl px-3 py-2 text-left text-body leading-snug text-foreground",
+                    "companion-glass companion-drop max-w-64 px-3 py-2 text-left text-body leading-snug text-foreground",
                     placement.vertical === "below" ? "origin-top" : "origin-bottom",
                   )}
                 >
@@ -353,6 +357,7 @@ function Avatar({
             data-state={state}
             data-asks={asks || undefined}
             data-lifted={lifted || undefined}
+            data-face-motion={faceOf(PEBBLE, state, asks).motion}
             aria-expanded={open}
             aria-label={`${label ?? STATE_WORDS[state]}${asks ? ", something needs you" : ""}. ${open ? "Close" : "Open"} the companion`}
             onClick={onClick}
@@ -364,7 +369,7 @@ function Avatar({
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerUp}
-            className="companion-pebble relative grid size-10 shrink-0 cursor-grab touch-none place-items-center rounded-full outline-none select-none focus-visible:focus-ring"
+            className="companion-pebble relative grid shrink-0 cursor-grab touch-none place-items-center rounded-full outline-none select-none focus-visible:focus-ring"
           />
         }
       >

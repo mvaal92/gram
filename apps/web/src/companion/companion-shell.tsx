@@ -128,7 +128,7 @@ function Bubble({
     <section
       data-testid="companion-bubble"
       aria-label="Gram companion"
-      className="companion-glass companion-panel flex max-h-[min(36rem,calc(100dvh-6rem))] w-85 max-w-full flex-col gap-2.5 rounded-xl p-3"
+      className="companion-glass companion-panel flex max-h-[min(36rem,calc(100dvh-6rem))] w-85 max-w-full flex-col gap-2.5 p-3"
     >
       <header className="flex items-center justify-between gap-2 text-meta text-muted-foreground">
         <span className="truncate">

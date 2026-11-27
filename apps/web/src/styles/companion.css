@@ -15,14 +15,15 @@
     top var(--dur-base) ease-out;
 }
 
+/* The icon draws what its skin (companion-skin.ts) names: its body and inner mark per state as
+   token roles, and one of Gram's motion presets. */
 .companion-pebble {
-  background: var(--fg);
+  width: var(--companion-size, 40px);
+  height: var(--companion-size, 40px);
+  background: var(--companion-body, var(--fg));
   box-shadow:
     inset 0 1px 0 color-mix(in oklab, var(--surface-3) 35%, transparent),
     0 4px 14px color-mix(in oklab, var(--fg) 18%, transparent);
-}
-.companion-pebble[data-state="error"] {
-  background: var(--danger);
 }
 .companion-pebble[data-lifted] {
   cursor: grabbing;
@@ -34,20 +35,11 @@
   display: block;
   width: 10px;
   height: 10px;
-  border-radius: 9999px;
-  background: var(--surface-1);
-}
-.companion-pebble[data-state="working"] .companion-mark {
-  border-radius: 3px;
-  background: var(--accent);
-}
-.companion-pebble[data-asks] .companion-mark {
-  border-radius: 9999px;
-  background: var(--status-needs-mark);
+  border-radius: var(--companion-mark-radius, 9999px);
+  background: var(--companion-mark, var(--surface-1));
 }
 
-/* Working: a slow glow around the mark, the only motion it makes on its own. */
-[data-motion="full"] .companion-pebble[data-state="working"] .companion-mark {
+[data-motion="full"] .companion-pebble[data-face-motion="glow"] .companion-mark {
   animation: companion-glow 3.2s ease-in-out infinite;
 }
 @keyframes companion-glow {
@@ -60,14 +52,22 @@
 .companion-glass {
   position: relative;
   color: var(--fg);
-  background: color-mix(in oklab, var(--surface-3) 58%, transparent);
+  background: color-mix(
+    in oklab,
+    var(--companion-glass-tint, var(--surface-3)) var(--companion-glass-alpha, 58%),
+    transparent
+  );
   border: 1px solid color-mix(in oklab, var(--surface-3) 50%, transparent);
   box-shadow:
     inset 0 1px 0 color-mix(in oklab, var(--surface-3) 85%, var(--fg) 15%),
     inset 0 -1px 0 color-mix(in oklab, var(--fg) 8%, transparent),
     0 18px 40px color-mix(in oklab, var(--fg) 18%, transparent);
-  -webkit-backdrop-filter: blur(22px) saturate(1.8) brightness(1.04);
-  backdrop-filter: blur(22px) saturate(1.8) brightness(1.04);
+  -webkit-backdrop-filter: blur(var(--companion-glass-blur, 22px)) saturate(1.8) brightness(1.04);
+  backdrop-filter: blur(var(--companion-glass-blur, 22px)) saturate(1.8) brightness(1.04);
+}
+.companion-panel,
+.companion-drop {
+  border-radius: var(--companion-glass-radius, 18px);
 }
 .companion-glass::before {
   content: "";
