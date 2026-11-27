@@ -11,3 +11,5 @@ keeps this; the build reads it with the approved version.
 - v3, 2026-11-27: no "Ask Gram" placeholder; a glass hint on hover naming the work under way,
   nothing shown otherwise; drag anywhere with a gentle edge snap, a remembered position and a
   dropdown that opens toward the side with room. A frameless desktop window is the next step.
+- v3 approved, 2026-11-27: build v3 with the Pebble icon for now; the icon gets its own design
+  round later. The skin kit stays a proposal (kit.md).

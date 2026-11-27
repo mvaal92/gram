@@ -1,0 +1,147 @@
+/*
+ * Companion mode. The icon is Pebble: a filled circle with one inner mark per state, calm by
+ * default. Its dropdown, hint and drops are liquid glass: a translucent, blurred surface with a
+ * specular top edge, over whatever is behind. Glass falls back to the solid raised surface where
+ * the browser can't blur, where Surfaces is Solid, and where the person asks for more contrast or
+ * less transparency. Colour comes only from palette tokens.
+ */
+
+.companion-anchor {
+  z-index: 20;
+}
+[data-motion="full"] .companion-anchor:not([data-dragging]) {
+  transition:
+    left var(--dur-base) ease-out,
+    top var(--dur-base) ease-out;
+}
+
+.companion-pebble {
+  background: var(--fg);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--surface-3) 35%, transparent),
+    0 4px 14px color-mix(in oklab, var(--fg) 18%, transparent);
+}
+.companion-pebble[data-state="error"] {
+  background: var(--danger);
+}
+.companion-pebble[data-lifted] {
+  cursor: grabbing;
+  transform: scale(1.08);
+  box-shadow: 0 14px 30px color-mix(in oklab, var(--fg) 28%, transparent);
+}
+
+.companion-mark {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: var(--surface-1);
+}
+.companion-pebble[data-state="working"] .companion-mark {
+  border-radius: 3px;
+  background: var(--accent);
+}
+.companion-pebble[data-asks] .companion-mark {
+  border-radius: 9999px;
+  background: var(--status-needs-mark);
+}
+
+/* Working: a slow glow around the mark, the only motion it makes on its own. */
+[data-motion="full"] .companion-pebble[data-state="working"] .companion-mark {
+  animation: companion-glow 3.2s ease-in-out infinite;
+}
+@keyframes companion-glow {
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 30%, transparent);
+  }
+}
+
+/* Liquid glass. */
+.companion-glass {
+  position: relative;
+  color: var(--fg);
+  background: color-mix(in oklab, var(--surface-3) 58%, transparent);
+  border: 1px solid color-mix(in oklab, var(--surface-3) 50%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--surface-3) 85%, var(--fg) 15%),
+    inset 0 -1px 0 color-mix(in oklab, var(--fg) 8%, transparent),
+    0 18px 40px color-mix(in oklab, var(--fg) 18%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8) brightness(1.04);
+  backdrop-filter: blur(22px) saturate(1.8) brightness(1.04);
+}
+.companion-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    120% 60% at 20% -10%,
+    color-mix(in oklab, var(--surface-3) 40%, transparent),
+    transparent 60%
+  );
+}
+.companion-glass > * {
+  position: relative;
+}
+.companion-inset {
+  background: color-mix(in oklab, var(--surface-1) 55%, transparent);
+  border: 1px solid color-mix(in oklab, var(--fg) 8%, transparent);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .companion-glass {
+    background: var(--surface-3);
+  }
+  .companion-glass::before {
+    display: none;
+  }
+}
+:root[data-surfaces="solid"] .companion-glass {
+  background: var(--surface-3);
+  border-color: var(--border-subtle);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-surfaces="solid"] .companion-glass::before {
+  display: none;
+}
+@media (prefers-contrast: more), (prefers-reduced-transparency: reduce) {
+  .companion-glass {
+    background: var(--surface-3);
+    border-color: var(--border-strong);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .companion-glass::before {
+    display: none;
+  }
+  .companion-inset {
+    background: var(--surface-1);
+  }
+}
+@media (forced-colors: active) {
+  .companion-glass {
+    background: Canvas;
+    border-color: CanvasText;
+  }
+}
+
+[data-motion="full"] .companion-drop,
+[data-motion="full"] .companion-panel {
+  animation: companion-open var(--dur-fast) ease-out both;
+}
+[data-motion="full"] .companion-hint {
+  animation: companion-fade var(--dur-fast) ease-out both;
+}
+@keyframes companion-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes companion-open {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
+}

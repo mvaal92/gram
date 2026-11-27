@@ -22,6 +22,7 @@
 @import "./tokens.css";
 @import "./motion.css";
 @import "./looks.css";
+@import "./companion.css";
 
 /* The variants, the token names Tailwind takes and the app's own utilities. */
 @import "./theme.css";

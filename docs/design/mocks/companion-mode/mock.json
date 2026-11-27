@@ -1,10 +1,10 @@
 {
   "title": "Companion mode",
   "slug": "companion-mode",
-  "status": "draft",
+  "status": "approved",
   "template": "options",
   "current": 3,
-  "approved": 1,
+  "approved": 3,
   "versions": [
     {
       "n": 1,
