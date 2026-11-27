@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Companion mode directions · v1</title>
+    <link rel="stylesheet" href="kit/tokens.css" />
+    <link rel="stylesheet" href="kit/kit.css" />
+    <script src="kit/kit.js" defer></script>
+    <style>
+      .desk {
+        position: relative;
+        min-height: 520px;
+        background: var(--surface-1);
+        overflow: hidden;
+      }
+      .desk-hint {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: var(--fg-subtle);
+        font-size: 12px;
+      }
+      .dock {
+        position: absolute;
+        right: 20px;
+        bottom: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 10px;
+        max-width: calc(100% - 40px);
+      }
+      .orb {
+        position: relative;
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        border: 1px solid var(--border-strong);
+        background: var(--surface-3);
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        box-shadow: 0 6px 20px color-mix(in oklab, var(--fg) 14%, transparent);
+      }
+      .orb .face {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: var(--accent);
+        animation: breathe 3.2s ease-in-out infinite;
+      }
+      .orb[data-state="working"] .face {
+        animation: pulse 1.1s ease-in-out infinite;
+      }
+      .orb[data-state="working"]::after {
+        content: "";
+        position: absolute;
+        inset: -4px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        border-top-color: var(--accent);
+        animation: spin 1s linear infinite;
+      }
+      .orb[data-state="needs"]::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--status-needs-mark);
+        border: 2px solid var(--surface-3);
+      }
+      .orb[data-state="error"] .face {
+        background: var(--danger);
+        animation: none;
+      }
+      .orb .glyph {
+        position: absolute;
+        width: 26px;
+        height: 26px;
+        display: grid;
+        place-items: center;
+        color: var(--on-accent);
+      }
+      .orb .glyph .icon {
+        width: 14px;
+        height: 14px;
+      }
+      .orb.sm {
+        width: 40px;
+        height: 40px;
+      }
+      .orb.sm .face {
+        width: 20px;
+        height: 20px;
+      }
+      @keyframes breathe {
+        50% {
+          transform: scale(0.88);
+        }
+      }
+      @keyframes pulse {
+        50% {
+          transform: scale(0.72);
+        }
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .bubble {
+        width: 340px;
+        max-width: 100%;
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-xl);
+        background: var(--surface-3);
+        box-shadow: 0 10px 30px color-mix(in oklab, var(--fg) 12%, transparent);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
+      }
+      .bubble-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--fg-muted);
+      }
+      .reply {
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--fg);
+        max-height: 150px;
+        overflow: auto;
+      }
+      .you {
+        font-size: 12px;
+        color: var(--fg-muted);
+        align-self: flex-end;
+        background: var(--surface-2);
+        border-radius: var(--radius-md);
+        padding: 4px 8px;
+        max-width: 85%;
+      }
+      .say {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        border: 1px solid var(--border-subtle);
+        border-radius: 999px;
+        padding: 4px 4px 4px 12px;
+        background: var(--surface-1);
+      }
+      .say input {
+        flex: 1;
+        border: 0;
+        background: transparent;
+        color: var(--fg);
+        font: inherit;
+        font-size: 13px;
+        min-width: 0;
+        outline: none;
+      }
+      .say .btn {
+        border-radius: 999px;
+      }
+      .statusline {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--fg-muted);
+        font-family: var(--font-mono);
+        min-width: 0;
+      }
+      .statusline .icon {
+        width: 12px;
+        height: 12px;
+        flex: none;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        font-family: var(--font-mono);
+        color: var(--fg-muted);
+        border: 1px solid var(--border-subtle);
+        border-radius: 999px;
+        padding: 2px 8px;
+        background: var(--surface-1);
+      }
+      .chip .icon {
+        width: 11px;
+        height: 11px;
+      }
+      .chip[aria-expanded="true"] {
+        border-color: var(--border-strong);
+        color: var(--fg);
+      }
+      .chip-detail {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--fg-muted);
+        background: var(--surface-1);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+        padding: 6px 8px;
+        white-space: pre-wrap;
+      }
+      .mini {
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        padding: 8px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        background: var(--surface-1);
+        font-size: 12px;
+      }
+      .mini .row {
+        gap: 6px;
+      }
+      .mini .tag {
+        font-size: 10px;
+        color: var(--fg-subtle);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+      }
+      .mini .row strong {
+        white-space: nowrap;
+      }
+      .mini code {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--fg);
+        word-break: break-all;
+      }
+      .caption {
+        font-size: 11px;
+        color: var(--fg-subtle);
+        text-align: right;
+        max-width: 220px;
+      }
+      .states {
+        display: flex;
+        gap: 28px;
+        flex-wrap: wrap;
+        padding: 28px;
+        align-items: flex-start;
+      }
+      .states figure {
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--fg-muted);
+      }
+      .menu.float {
+        position: static;
+        width: 220px;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .orb .face,
+        .orb::after {
+          animation: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body class="mock">
+    <main class="mock-canvas">
+      <p class="mock-note">
+        Companion mode replaces the whole window with one round avatar and a small bubble. The
+        orchestrator, its workers and Runheim's threads keep running behind it. Pick how tool
+        calls show: A Status line, B Tool chips or C Avatar states.
+      </p>
+
+      <section class="board" data-name="Avatar states" data-size="720x200">
+        <div class="board-frame">
+          <div class="states">
+            <figure>
+              <button class="orb" type="button" aria-label="Gram, idle"><span class="face"></span></button>
+              <figcaption>Idle: slow breath</figcaption>
+            </figure>
+            <figure>
+              <button class="orb" data-state="working" type="button" aria-label="Gram, working">
+                <span class="face"></span>
+              </button>
+              <figcaption>Working: ring turns</figcaption>
+            </figure>
+            <figure>
+              <button class="orb" data-state="needs" type="button" aria-label="Gram, needs you">
+                <span class="face"></span>
+              </button>
+              <figcaption>Needs you: amber dot</figcaption>
+            </figure>
+            <figure>
+              <button class="orb" data-state="error" type="button" aria-label="Gram, failed">
+                <span class="face"></span>
+              </button>
+              <figcaption>Failed: red, still</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="board" data-name="Collapsed" data-size="720x520">
+        <div class="board-frame">
+          <div class="desk">
+            <div class="desk-hint">Your desktop or the page around it. No Gram chrome at all.</div>
+            <div class="dock">
+              <span class="caption">3 workers running · 1 needs you</span>
+              <button class="orb" data-state="needs" type="button" aria-label="Open Gram companion">
+                <span class="face"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="board" data-name="A Status line" data-size="720x520">
+        <div class="board-frame">
+          <div class="desk">
+            <div class="dock">
+              <div class="bubble">
+                <div class="bubble-head">
+                  <span>Gram · gram workspace</span>
+                  <button class="btn sm ghost" type="button" aria-label="Open full Gram">
+                    <i data-icon="panel"></i>
+                  </button>
+                </div>
+                <span class="you">Fix the flaky send-task e2e and open a PR</span>
+                <div class="reply">
+                  I briefed a worker on it. It reproduced the flake in 3 of 10 runs: the composer
+                  sends before the model list loads. It is waiting on the fix's CI now.
+                </div>
+                <div class="statusline" aria-live="polite">
+                  <span class="spinner"></span>
+                  <span class="truncate">worker · bun run --filter @gram/web e2e send-task</span>
+                </div>
+                <label class="say">
+                  <span class="sr-only">Message</span>
+                  <input placeholder="Ask Gram…" />
+                  <button class="btn sm primary" type="button" aria-label="Send"><i data-icon="up"></i></button>
+                </label>
+              </div>
+              <button class="orb sm" data-state="working" type="button" aria-label="Close companion">
+                <span class="face"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="board" data-name="B Tool chips" data-size="720x520">
+        <div class="board-frame">
+          <div class="desk">
+            <div class="dock">
+              <div class="bubble">
+                <div class="bubble-head">
+                  <span>Gram · gram workspace</span>
+                  <button class="btn sm ghost" type="button" aria-label="Open full Gram">
+                    <i data-icon="panel"></i>
+                  </button>
+                </div>
+                <span class="you">Fix the flaky send-task e2e and open a PR</span>
+                <div class="chips">
+                  <button class="chip" type="button"><i data-icon="search"></i>grep ×3</button>
+                  <button class="chip" type="button"><i data-icon="file"></i>read 4 files</button>
+                  <button class="chip" type="button" aria-expanded="true">
+                    <i data-icon="terminal"></i>e2e send-task<i data-icon="down"></i>
+                  </button>
+                  <button class="chip" type="button"><i data-icon="orch"></i>spawn worker</button>
+                </div>
+                <div class="chip-detail">$ bun run --filter @gram/web e2e send-task
+3 failed of 10 · composer sent before models loaded</div>
+                <div class="reply">
+                  I briefed a worker on it. It is waiting on the fix's CI now.
+                </div>
+                <label class="say">
+                  <span class="sr-only">Message</span>
+                  <input placeholder="Ask Gram…" />
+                  <button class="btn sm primary" type="button" aria-label="Send"><i data-icon="up"></i></button>
+                </label>
+              </div>
+              <button class="orb sm" type="button" aria-label="Close companion"><span class="face"></span></button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="board" data-name="C Avatar states" data-size="720x520">
+        <div class="board-frame">
+          <div class="desk">
+            <div class="dock">
+              <div class="bubble">
+                <div class="bubble-head">
+                  <span>Gram · gram workspace</span>
+                  <button class="btn sm ghost" type="button" aria-label="Open full Gram">
+                    <i data-icon="panel"></i>
+                  </button>
+                </div>
+                <span class="you">Fix the flaky send-task e2e and open a PR</span>
+                <div class="reply">
+                  I briefed a worker on it. It reproduced the flake in 3 of 10 runs and is waiting
+                  on the fix's CI now.
+                </div>
+                <label class="say">
+                  <span class="sr-only">Message</span>
+                  <input placeholder="Ask Gram…" />
+                  <button class="btn sm primary" type="button" aria-label="Send"><i data-icon="up"></i></button>
+                </label>
+              </div>
+              <span class="caption">Running tests…</span>
+              <button class="orb" data-state="working" type="button" aria-label="Gram is running tests">
+                <span class="face"></span><span class="glyph"><i data-icon="terminal"></i></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="board" data-name="Needs you and Runheim" data-size="720x520">
+        <div class="board-frame">
+          <div class="desk">
+            <div class="dock">
+              <div class="bubble">
+                <div class="bubble-head">
+                  <span>Gram · gram workspace</span>
+                  <button class="btn sm ghost" type="button" aria-label="Open full Gram">
+                    <i data-icon="panel"></i>
+                  </button>
+                </div>
+                <div class="mini" role="group" aria-label="Approval">
+                  <div class="row between">
+                    <span class="row"><span class="dot needs"></span><strong>Approve a command</strong></span>
+                    <span class="tag">worker · send-task-flake</span>
+                  </div>
+                  <code>git push mine claude/send-task-flake</code>
+                  <div class="row">
+                    <button class="btn sm primary" type="button">Allow</button>
+                    <button class="btn sm" type="button">Deny</button>
+                    <a href="#" class="small muted">Open thread</a>
+                  </div>
+                </div>
+                <div class="mini" role="group" aria-label="From Runheim">
+                  <div class="row between">
+                    <span class="row"><span class="spinner"></span><strong>Release notes draft</strong></span>
+                    <span class="tag">From Runheim</span>
+                  </div>
+                  <span class="muted">Started by a Runheim run 14:02 · writing CHANGELOG</span>
+                </div>
+                <div class="reply">One push waits on you. Runheim's release run is still writing.</div>
+                <label class="say">
+                  <span class="sr-only">Message</span>
+                  <input placeholder="Ask Gram…" />
+                  <button class="btn sm primary" type="button" aria-label="Send"><i data-icon="up"></i></button>
+                </label>
+              </div>
+              <button class="orb sm" data-state="needs" type="button" aria-label="Close companion">
+                <span class="face"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="board" data-name="Back to Gram" data-size="720x360">
+        <div class="board-frame">
+          <div class="desk" style="min-height: 360px">
+            <div class="dock">
+              <div class="menu float" role="menu">
+                <button class="menu-item" role="menuitem" type="button">
+                  <i data-icon="panel"></i>Open full Gram<span class="kbd">Ctrl Alt 6</span>
+                </button>
+                <button class="menu-item" role="menuitem" type="button">
+                  <i data-icon="msg"></i>Switch workspace
+                </button>
+                <button class="menu-item" role="menuitem" type="button">
+                  <i data-icon="snooze"></i>Hide for an hour
+                </button>
+              </div>
+              <span class="caption">Right-click the avatar, or the same shortcut that turned it on</span>
+              <button class="orb" type="button" aria-label="Gram companion menu"><span class="face"></span></button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

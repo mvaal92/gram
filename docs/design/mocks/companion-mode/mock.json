@@ -1,0 +1,41 @@
+{
+  "title": "Companion mode",
+  "slug": "companion-mode",
+  "status": "draft",
+  "template": "options",
+  "current": 1,
+  "approved": null,
+  "versions": [
+    {
+      "n": 1,
+      "file": "v1.html",
+      "created": "2026-11-27"
+    }
+  ],
+  "directions": [
+    {
+      "name": "A Status line",
+      "board": "a-status-line",
+      "shots": {
+        "dark": "shots/a-status-line-dark.png",
+        "light": "shots/a-status-line-light.png"
+      }
+    },
+    {
+      "name": "B Tool chips",
+      "board": "b-tool-chips",
+      "shots": {
+        "dark": "shots/b-tool-chips-dark.png",
+        "light": "shots/b-tool-chips-light.png"
+      }
+    },
+    {
+      "name": "C Avatar states",
+      "board": "c-avatar-states",
+      "shots": {
+        "dark": "shots/c-avatar-states-dark.png",
+        "light": "shots/c-avatar-states-light.png"
+      }
+    }
+  ]
+}
