@@ -1,40 +1,61 @@
 {
   "title": "Companion mode",
   "slug": "companion-mode",
-  "status": "approved",
+  "status": "draft",
   "template": "options",
-  "current": 1,
+  "current": 2,
   "approved": 1,
   "versions": [
     {
       "n": 1,
       "file": "v1.html",
       "created": "2026-11-27"
+    },
+    {
+      "n": 2,
+      "file": "v2.html",
+      "created": "2026-11-27"
     }
   ],
   "directions": [
     {
-      "name": "A Status line",
-      "board": "a-status-line",
+      "name": "Calm icon",
+      "board": "resting",
       "shots": {
-        "dark": "shots/a-status-line-dark.png",
-        "light": "shots/a-status-line-light.png"
+        "dark": "shots/resting-dark.png",
+        "light": "shots/resting-light.png"
       }
     },
     {
-      "name": "B Tool chips",
-      "board": "b-tool-chips",
+      "name": "Glass dropdown",
+      "board": "glass-dropdown",
       "shots": {
-        "dark": "shots/b-tool-chips-dark.png",
-        "light": "shots/b-tool-chips-light.png"
+        "dark": "shots/glass-dropdown-dark.png",
+        "light": "shots/glass-dropdown-light.png"
       }
     },
     {
-      "name": "C Avatar states",
-      "board": "c-avatar-states",
+      "name": "Auto drop",
+      "board": "auto-drop",
       "shots": {
-        "dark": "shots/c-avatar-states-dark.png",
-        "light": "shots/c-avatar-states-light.png"
+        "dark": "shots/auto-drop-dark.png",
+        "light": "shots/auto-drop-light.png"
+      }
+    },
+    {
+      "name": "Skin picker",
+      "board": "skin-picker",
+      "shots": {
+        "dark": "shots/skin-picker-dark.png",
+        "light": "shots/skin-picker-light.png"
+      }
+    },
+    {
+      "name": "Skin import",
+      "board": "skin-import",
+      "shots": {
+        "dark": "shots/skin-import-dark.png",
+        "light": "shots/skin-import-light.png"
       }
     }
   ]
