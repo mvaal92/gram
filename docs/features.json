@@ -1055,6 +1055,21 @@
         "tools/release-*/**/*.test.mjs"
       ],
       "docs": ["docs/VERIFICATION.md", "docs/RELEASING.md", "docs/DOCKER.md", "CONTRIBUTING.md"]
+    },
+    {
+      "name": "Companion mode",
+      "purpose": "An experimental mode where the whole window is one round avatar and a small bubble that talks to the workspace's orchestrator, with asks and host-started threads as compact cards.",
+      "code": ["apps/web/src/companion/**"],
+      "tests": ["apps/web/src/companion/**/*.test.{ts,tsx}"],
+      "docs": ["docs/design/mocks/companion-mode/brief.md"],
+      "ui": {
+        "where": "Ctrl+Alt+6, or Companion mode in the command palette",
+        "route": "/",
+        "landmark": {
+          "role": "region",
+          "name": "Gram companion"
+        }
+      }
     }
   ]
 }

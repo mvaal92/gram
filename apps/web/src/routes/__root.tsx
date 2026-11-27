@@ -1,6 +1,8 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext } from "@tanstack/react-router";
 
+import { CompanionShell } from "@/companion/companion-shell";
+import { useCompanion } from "@/companion/companion-store";
 import { ThemeRoot } from "@/components/theme-root";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NeedsYouSource } from "@/orchestration/use-needs-you";
@@ -20,12 +22,13 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 function RootLayout() {
   useAppLifecycle();
   usePreloadAfterPaint();
+  const companion = useCompanion((s) => s.on);
 
   return (
     <ThemeRoot>
       <TooltipProvider>
         <NeedsYouSource />
-        <AppShell />
+        {companion ? <CompanionShell /> : <AppShell />}
         <AppOverlays />
       </TooltipProvider>
     </ThemeRoot>

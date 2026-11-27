@@ -5,6 +5,7 @@ import { HISTORY_TEST_ID, useHistoryStore } from "@/history/history-view";
 import { toggleInbox } from "@/inbox/inbox-store";
 import { INBOX_TEST_ID } from "@/inbox/inbox-view";
 import { paneMoveKeys, THREAD_STEP_KEYS } from "@/keyboard/catalog";
+import { useCompanion } from "@/companion/companion-store";
 import { keyLabel, registerShortcut, useShortcut } from "@/keyboard/registry";
 import { besideToggle, closeBeside, keepBeside } from "@/orchestration/beside-store";
 import { boardWorkspaceFor } from "@/orchestration/board-model";
@@ -51,6 +52,14 @@ export function useGlobalShortcuts() {
   const openSettings = useOpenSettings();
   const router = useRouter();
   const currentId = useRouteThreadId();
+
+  useShortcut({
+    id: "view.companion",
+    keys: "mod+alt+6",
+    label: "Companion mode",
+    group: "Navigation",
+    run: () => useCompanion.getState().toggle(),
+  });
 
   useShortcut({
     id: "palette.open",
