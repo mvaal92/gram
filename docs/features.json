@@ -1058,10 +1058,13 @@
     },
     {
       "name": "Companion mode",
-      "purpose": "An experimental mode where the whole window is one round avatar and a small bubble that talks to the workspace's orchestrator, with asks and host-started threads as compact cards.",
-      "code": ["apps/web/src/companion/**"],
-      "tests": ["apps/web/src/companion/**/*.test.{ts,tsx}"],
-      "docs": ["docs/design/mocks/companion-mode/brief.md"],
+      "purpose": "An experimental mode where the whole window is one small icon you can drag anywhere, with a glass dropdown that talks to the workspace's orchestrator, asks and host-started threads as compact cards.",
+      "code": ["apps/web/src/companion/**", "apps/web/src/styles/companion.css"],
+      "tests": ["apps/web/src/companion/**/*.test.{ts,tsx}", "apps/web/e2e/companion.spec.ts"],
+      "docs": [
+        "docs/design/mocks/companion-mode/brief.md",
+        "docs/design/mocks/companion-mode/kit.md"
+      ],
       "ui": {
         "where": "Ctrl+Alt+6, or Companion mode in the command palette",
         "route": "/",

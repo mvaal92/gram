@@ -50,6 +50,10 @@ const textOf = (message: GramUIMessage): string =>
     .join("\n\n")
     .trim();
 
+const fromGram = (message: GramUIMessage): boolean =>
+  message.metadata?.author === "server" ||
+  message.parts.some((part) => part.type.startsWith("data-"));
+
 /** The person's last words and the agent's reply after them, which is all the bubble shows. */
 export function lastExchange(messages: readonly GramUIMessage[]): {
   readonly asked: string | undefined;
@@ -60,7 +64,10 @@ export function lastExchange(messages: readonly GramUIMessage[]): {
     const message = messages[i]!;
     const text = textOf(message);
     if (text === "") continue;
-    if (message.role === "user") return { asked: text, reply };
+    if (message.role === "user") {
+      if (fromGram(message)) continue;
+      return { asked: text, reply };
+    }
     reply ??= text;
   }
   return { asked: undefined, reply };

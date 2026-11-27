@@ -4,6 +4,7 @@ import { ArrowUp, LayoutPanelLeft } from "lucide-react";
 import { useMemo, useRef, useState, type FormEvent } from "react";
 
 import { useApi } from "@/api/context";
+import { Markdown } from "@/components/ai-elements/markdown";
 import { Button } from "@/components/ui/button";
 import { useShortcutHint } from "@/keyboard/use-shortcut-hint";
 import { answersInFull } from "@/inbox/inbox-detail";
@@ -18,6 +19,7 @@ import { useViewWorkspace } from "@/views/view-workspace";
 
 import { CompanionPresence } from "./companion-avatar";
 import {
+  activeTool,
   avatarState,
   hostLabel,
   hostThreads,
@@ -25,6 +27,7 @@ import {
   latestThread,
   needsPerson,
   workerLine,
+  type ActiveTool,
 } from "./companion-model";
 import { useCompanion } from "./companion-store";
 
@@ -41,7 +44,6 @@ function useCompanionWorkspace(): WorkspaceState | undefined {
  * ever; asks, approvals and threads a host such as Runheim started show as compact cards.
  */
 export function CompanionShell() {
-  const open = useCompanion((s) => s.open);
   const workspace = useCompanionWorkspace();
   const all = useThreadsStore((s) => s.byId);
   const params: { threadId?: ThreadId } = useParams({ strict: false });
@@ -71,27 +73,23 @@ export function CompanionShell() {
   const busy = workerLine(watched, threadId);
 
   return (
-    <div
-      data-testid="companion"
-      className="relative h-dvh w-full overflow-hidden bg-surface-1 text-foreground"
-    >
-      <div className="absolute right-5 bottom-5 flex max-w-[calc(100%-2.5rem)] flex-col items-end gap-2.5">
-        {open && (
+    <div data-testid="companion" className="relative h-dvh w-full overflow-hidden text-foreground">
+      <CompanionPresence
+        threadId={threadId}
+        state={state}
+        asks={asks}
+        busy={busy}
+        needs={needs}
+        panel={
           <Bubble
             workspace={workspace}
             target={target}
             needs={needs}
             hosts={hostThreads(summaries)}
+            busy={busy}
           />
-        )}
-        <CompanionPresence
-          threadId={threadId}
-          state={state}
-          asks={asks}
-          busy={busy}
-          needs={needs}
-        />
-      </div>
+        }
+      />
     </div>
   );
 }
@@ -101,11 +99,13 @@ function Bubble({
   target,
   needs,
   hosts,
+  busy,
 }: {
   workspace: WorkspaceState | undefined;
   target: ThreadSummary | undefined;
   needs: readonly NeedsYouItem[];
   hosts: readonly ThreadSummary[];
+  busy: ActiveTool | undefined;
 }) {
   const api = useApi();
   const navigate = useNavigate();
@@ -128,7 +128,7 @@ function Bubble({
     <section
       data-testid="companion-bubble"
       aria-label="Gram companion"
-      className="flex max-h-[min(36rem,calc(100dvh-7rem))] w-85 max-w-full flex-col gap-2.5 rounded-xl border border-border bg-surface-3 p-3 shadow-overlay"
+      className="companion-glass companion-panel flex max-h-[min(36rem,calc(100dvh-6rem))] w-85 max-w-full flex-col gap-2.5 rounded-xl p-3"
     >
       <header className="flex items-center justify-between gap-2 text-meta text-muted-foreground">
         <span className="truncate">
@@ -153,7 +153,7 @@ function Bubble({
           <HostCard key={summary.thread.id} summary={summary} onOpen={openFull} />
         ))}
         {target !== undefined ? (
-          <Exchange threadId={target.thread.id} />
+          <Exchange threadId={target.thread.id} busy={busy} />
         ) : workspace !== undefined ? (
           <div className="flex flex-col items-start gap-2 text-body text-muted-foreground">
             <span>No orchestrator runs in {workspace.workspace.name} yet.</span>
@@ -172,25 +172,34 @@ function Bubble({
   );
 }
 
-function Exchange({ threadId }: { threadId: ThreadId }) {
+function Exchange({ threadId, busy }: { threadId: ThreadId; busy: ActiveTool | undefined }) {
   const messages = useThreadFeed(threadId, (s) => s.messages);
   const { asked, reply } = lastExchange(messages);
+  const step = activeTool(messages) ?? busy;
   return (
     <>
+      {step !== undefined && (
+        <div
+          data-testid="companion-step"
+          className="flex min-w-0 items-center gap-1.5 font-mono text-meta text-muted-foreground"
+        >
+          <StatusDot state="working" still />
+          <span className="truncate">{step.label}</span>
+        </div>
+      )}
       {asked !== undefined && (
-        <span className="max-w-[85%] self-end truncate rounded-md bg-surface-2 px-2 py-1 text-meta text-muted-foreground">
+        <span className="companion-inset max-w-[85%] self-end truncate rounded-lg px-2 py-1 text-meta text-muted-foreground">
           {asked}
         </span>
       )}
-      <p
-        data-testid="companion-reply"
-        className="max-h-40 overflow-y-auto text-body leading-relaxed whitespace-pre-wrap"
-      >
-        {reply ??
-          (asked === undefined
-            ? "Ask for anything: a fix, a review, a release. I brief workers and report back."
-            : "On it…")}
-      </p>
+      {(reply !== undefined || asked !== undefined) && (
+        <div
+          data-testid="companion-reply"
+          className="max-h-48 overflow-y-auto text-body leading-relaxed"
+        >
+          {reply === undefined ? "On it…" : <Markdown mode="static">{reply}</Markdown>}
+        </div>
+      )}
     </>
   );
 }
@@ -216,7 +225,7 @@ function Say({ summary }: { summary: ThreadSummary }) {
   return (
     <form
       onSubmit={submit}
-      className="flex items-center gap-1.5 rounded-full border border-border bg-surface-1 py-1 pr-1 pl-3"
+      className="companion-inset flex items-center gap-1.5 rounded-full py-1 pr-1 pl-3"
     >
       <label className="sr-only" htmlFor="companion-input">
         Message the orchestrator
@@ -228,7 +237,6 @@ function Say({ summary }: { summary: ThreadSummary }) {
         autoComplete="off"
         value={text}
         onChange={(event) => setText(event.target.value)}
-        placeholder="Ask Gram…"
         className="min-w-0 flex-1 bg-transparent text-body outline-none placeholder:text-muted-foreground"
       />
       <Button
@@ -263,7 +271,7 @@ function NeedsCard({
       role="group"
       aria-label={item.title}
       data-testid="companion-needs"
-      className="flex flex-col gap-1.5 rounded-lg border border-border bg-surface-1 px-2.5 py-2 text-meta"
+      className="companion-inset flex flex-col gap-1.5 rounded-xl px-2.5 py-2 text-meta"
     >
       <div className="flex min-w-0 items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5">
@@ -309,7 +317,7 @@ function HostCard({
       type="button"
       data-testid="companion-host"
       onClick={() => onOpen(summary.thread.id)}
-      className="flex flex-col gap-1 rounded-lg border border-border bg-surface-1 px-2.5 py-2 text-left text-meta hover:bg-surface-2"
+      className="companion-inset flex flex-col gap-1 rounded-xl px-2.5 py-2 text-left text-meta hover:bg-surface-2"
     >
       <span className="flex min-w-0 items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5">

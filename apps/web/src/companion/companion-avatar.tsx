@@ -1,15 +1,6 @@
 import type { ThreadId } from "@gram/contracts";
-import {
-  FileText,
-  Globe,
-  LayoutPanelLeft,
-  Network,
-  Search,
-  SquareTerminal,
-  Wrench,
-  type LucideIcon,
-} from "lucide-react";
-import { useState } from "react";
+import { LayoutPanelLeft } from "lucide-react";
+import { useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 
 import {
   ContextMenu,
@@ -29,18 +20,18 @@ import {
   lastExchange,
   type ActiveTool,
   type AvatarState,
-  type ToolKind,
 } from "./companion-model";
+import {
+  DRAG_THRESHOLD,
+  EDGE_GAP,
+  ICON_SIZE,
+  placementOf,
+  snapDock,
+  type Dock,
+  type Placement,
+  type Point,
+} from "./companion-position";
 import { useCompanion } from "./companion-store";
-
-const TOOL_GLYPH: Record<ToolKind, LucideIcon> = {
-  terminal: SquareTerminal,
-  search: Search,
-  file: FileText,
-  worker: Network,
-  web: Globe,
-  other: Wrench,
-};
 
 const STATE_WORDS: Record<AvatarState, string> = {
   idle: "Gram",
@@ -57,8 +48,9 @@ interface Drop {
 }
 
 /**
- * The avatar with what it says on its own: the tool under way while it works, and a speech drop
- * when a reply lands or something new asks the person while the bubble is closed.
+ * The companion's icon where the person put it, with what it shows on its own: a hint naming the
+ * work under way while it is hovered, a glass drop when a reply lands or something new asks while
+ * the dropdown is closed, and the dropdown (`panel`) opened toward the side of the window with room.
  */
 export function CompanionPresence({
   threadId,
@@ -66,19 +58,36 @@ export function CompanionPresence({
   asks,
   busy,
   needs,
+  panel,
 }: {
   threadId: ThreadId | undefined;
   state: AvatarState;
-  /** Something waits on the person: the amber dot and the hop. */
+  /** Something waits on the person: the amber mark. */
   asks: boolean;
-  /** A running worker's line, shown when the companion's own turn names no tool. */
+  /** A running worker's line, for the hint when the companion's own turn names no tool. */
   busy: ActiveTool | undefined;
   needs: readonly NeedsYouItem[];
+  panel: ReactNode;
 }) {
   return threadId === undefined ? (
-    <Presence state={state} asks={asks} needs={needs} tool={busy} reply={undefined} loaded />
+    <Presence
+      state={state}
+      asks={asks}
+      needs={needs}
+      tool={busy}
+      reply={undefined}
+      loaded
+      panel={panel}
+    />
   ) : (
-    <ThreadPresence threadId={threadId} state={state} asks={asks} busy={busy} needs={needs} />
+    <ThreadPresence
+      threadId={threadId}
+      state={state}
+      asks={asks}
+      busy={busy}
+      needs={needs}
+      panel={panel}
+    />
   );
 }
 
@@ -88,12 +97,14 @@ function ThreadPresence({
   asks,
   busy,
   needs,
+  panel,
 }: {
   threadId: ThreadId;
   state: AvatarState;
   asks: boolean;
   busy: ActiveTool | undefined;
   needs: readonly NeedsYouItem[];
+  panel: ReactNode;
 }) {
   const messages = useThreadFeed(threadId, (s) => s.messages);
   const own = activeTool(messages);
@@ -108,9 +119,32 @@ function ThreadPresence({
       tool={tool}
       reply={own === undefined && loaded ? reply : undefined}
       loaded={loaded}
+      panel={panel}
     />
   );
 }
+
+const dockStyle = ({ edge, t }: Dock): CSSProperties => {
+  const along = `calc(${EDGE_GAP}px + ${t} * (100% - ${2 * EDGE_GAP + ICON_SIZE}px))`;
+  const far = `calc(100% - ${EDGE_GAP + ICON_SIZE}px)`;
+  switch (edge) {
+    case "top":
+      return { left: along, top: EDGE_GAP };
+    case "bottom":
+      return { left: along, top: far };
+    case "left":
+      return { left: EDGE_GAP, top: along };
+    case "right":
+      return { left: far, top: along };
+  }
+};
+
+const besideStyle = ({ vertical, horizontal }: Placement): string =>
+  cn(
+    "absolute flex w-max max-w-[min(22rem,calc(100vw-2rem))] flex-col gap-2",
+    vertical === "below" ? "top-full mt-2" : "bottom-full mb-2",
+    horizontal === "end" ? "right-0 items-end" : "left-0 items-start",
+  );
 
 function Presence({
   state,
@@ -119,6 +153,7 @@ function Presence({
   tool,
   reply,
   loaded,
+  panel,
 }: {
   state: AvatarState;
   asks: boolean;
@@ -126,58 +161,136 @@ function Presence({
   tool: ActiveTool | undefined;
   reply: string | undefined;
   loaded: boolean;
+  panel: ReactNode;
 }) {
   const open = useCompanion((s) => s.open);
   const setOpen = useCompanion((s) => s.setOpen);
+  const dock = useCompanion((s) => s.dock);
+  const setDock = useCompanion((s) => s.setDock);
   const drop = useDrop(open, loaded, reply, needs);
+  const [hovered, setHovered] = useState(false);
+  const anchor = useRef<HTMLDivElement>(null);
+  const press = useRef<{ start: Point; offset: Point; moved: boolean } | undefined>(undefined);
+  const [dragging, setDragging] = useState<Point | undefined>(undefined);
+  const dragged = useRef(false);
+  const placement = placementOf(dock);
+
+  const area = () => anchor.current?.parentElement?.getBoundingClientRect();
+  const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return;
+    const box = anchor.current?.getBoundingClientRect();
+    if (box === undefined) return;
+    press.current = {
+      start: { x: event.clientX, y: event.clientY },
+      offset: { x: event.clientX - box.left, y: event.clientY - box.top },
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const onPointerMove = (event: PointerEvent<HTMLButtonElement>) => {
+    const held = press.current;
+    const bounds = area();
+    if (held === undefined || bounds === undefined) return;
+    const dx = event.clientX - held.start.x;
+    const dy = event.clientY - held.start.y;
+    if (!held.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    held.moved = true;
+    setDragging({
+      x: Math.min(
+        Math.max(0, event.clientX - bounds.left - held.offset.x),
+        bounds.width - ICON_SIZE,
+      ),
+      y: Math.min(
+        Math.max(0, event.clientY - bounds.top - held.offset.y),
+        bounds.height - ICON_SIZE,
+      ),
+    });
+  };
+  const onPointerUp = () => {
+    const held = press.current;
+    const bounds = area();
+    press.current = undefined;
+    if (held?.moved !== true) return;
+    dragged.current = true;
+    if (dragging !== undefined && bounds !== undefined) setDock(snapDock(dragging, bounds));
+    setDragging(undefined);
+  };
+  const onClick = () => {
+    if (dragged.current) {
+      dragged.current = false;
+      return;
+    }
+    drop.dismiss();
+    setOpen(!open);
+  };
+
+  const hint = tool?.label ?? (state === "error" ? "Something failed" : "Gram · nothing running");
   return (
-    <>
-      {!open && drop.shown !== undefined && (
-        <button
-          type="button"
-          key={drop.shown.key}
-          data-testid="companion-drop"
-          data-tone={drop.shown.tone}
-          onClick={() => {
-            drop.dismiss();
-            setOpen(true);
-          }}
-          className="companion-drop relative max-w-64 rounded-xl border border-border bg-surface-3 px-3 py-2 text-left text-body leading-snug text-foreground shadow-overlay"
-        >
-          {drop.shown.tone === "needs" && (
-            <span className="mb-0.5 block text-meta font-semibold text-status-needs">
-              Needs you
-            </span>
-          )}
-          {drop.shown.text}
-        </button>
-      )}
-      {!open && tool !== undefined && (
-        <span
-          data-testid="companion-working"
-          aria-live="polite"
-          className="flex max-w-60 items-center gap-1.5 rounded-full border border-border bg-surface-3 px-2.5 py-1 text-meta text-muted-foreground shadow-raised"
-        >
-          <span className="truncate">{tool.label}</span>
-          <span aria-hidden className="companion-dots flex gap-0.5">
-            <i />
-            <i />
-            <i />
-          </span>
-        </span>
-      )}
+    <div
+      ref={anchor}
+      data-testid="companion-anchor"
+      data-edge={dock.edge}
+      data-dragging={dragging !== undefined || undefined}
+      className="companion-anchor absolute"
+      style={dragging === undefined ? dockStyle(dock) : { left: dragging.x, top: dragging.y }}
+    >
       <Avatar
         state={state}
         asks={asks}
         open={open}
-        tool={tool}
-        talking={!open && drop.shown !== undefined}
-        onClick={() => {
-          drop.dismiss();
-          setOpen(!open);
-        }}
+        lifted={dragging !== undefined}
+        label={tool?.label}
+        onClick={onClick}
+        onHover={setHovered}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
       />
-    </>
+      {hovered && !open && dragging === undefined && (
+        <span
+          role="tooltip"
+          data-testid="companion-hint"
+          className={cn(
+            "companion-glass companion-hint pointer-events-none absolute top-1/2 w-max max-w-[min(20rem,calc(100vw-5rem))] -translate-y-1/2 truncate rounded-full px-3 py-1 text-meta whitespace-nowrap",
+            placement.horizontal === "end" ? "right-full mr-2" : "left-full ml-2",
+          )}
+        >
+          {hint}
+        </span>
+      )}
+      {dragging === undefined && (open || drop.shown !== undefined) && (
+        <div
+          className={besideStyle(placement)}
+          data-placement={`${placement.vertical}-${placement.horizontal}`}
+        >
+          {open
+            ? panel
+            : drop.shown !== undefined && (
+                <button
+                  type="button"
+                  key={drop.shown.key}
+                  data-testid="companion-drop"
+                  data-tone={drop.shown.tone}
+                  onClick={() => {
+                    drop.dismiss();
+                    setOpen(true);
+                  }}
+                  className={cn(
+                    "companion-glass companion-drop max-w-64 rounded-xl px-3 py-2 text-left text-body leading-snug text-foreground",
+                    placement.vertical === "below" ? "origin-top" : "origin-bottom",
+                  )}
+                >
+                  {drop.shown.tone === "needs" && (
+                    <span className="mb-0.5 block text-meta font-semibold text-status-needs">
+                      Needs you
+                    </span>
+                  )}
+                  {drop.shown.text}
+                </button>
+              )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -209,20 +322,27 @@ function Avatar({
   state,
   asks,
   open,
-  tool,
-  talking,
+  lifted,
+  label,
   onClick,
+  onHover,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
 }: {
   state: AvatarState;
   asks: boolean;
   open: boolean;
-  tool: ActiveTool | undefined;
-  talking: boolean;
+  lifted: boolean;
+  label: string | undefined;
   onClick: () => void;
+  onHover: (hovered: boolean) => void;
+  onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
+  onPointerMove: (event: PointerEvent<HTMLButtonElement>) => void;
+  onPointerUp: () => void;
 }) {
   const leave = useCompanion((s) => s.set);
   const keys = useShortcutHint("view.companion");
-  const Glyph = tool === undefined ? undefined : TOOL_GLYPH[tool.kind];
   return (
     <ContextMenu>
       <ContextMenuTrigger
@@ -232,47 +352,23 @@ function Avatar({
             data-testid="companion-avatar"
             data-state={state}
             data-asks={asks || undefined}
-            data-talking={talking || undefined}
+            data-lifted={lifted || undefined}
             aria-expanded={open}
-            aria-label={`${STATE_WORDS[state]}${asks ? ", something needs you" : ""}. ${open ? "Close" : "Open"} the companion`}
-            title={tool?.label ?? STATE_WORDS[state]}
+            aria-label={`${label ?? STATE_WORDS[state]}${asks ? ", something needs you" : ""}. ${open ? "Close" : "Open"} the companion`}
             onClick={onClick}
-            className={cn(
-              "companion-orb relative grid shrink-0 cursor-pointer place-items-center rounded-full border border-border-strong bg-surface-3 shadow-raised outline-none focus-visible:focus-ring",
-              open ? "size-11" : "size-14",
-            )}
+            onPointerEnter={() => onHover(true)}
+            onPointerLeave={() => onHover(false)}
+            onFocus={() => onHover(true)}
+            onBlur={() => onHover(false)}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+            className="companion-pebble relative grid size-10 shrink-0 cursor-grab touch-none place-items-center rounded-full outline-none select-none focus-visible:focus-ring"
           />
         }
       >
-        <span
-          aria-hidden
-          className={cn(
-            "companion-face relative flex flex-col items-center justify-center rounded-full",
-            state === "error" ? "bg-destructive" : "bg-primary",
-            open ? "size-8" : "size-10",
-          )}
-        >
-          <span className="companion-eyes flex">
-            <span className="companion-eye" />
-            <span className="companion-eye" />
-          </span>
-          <span className="companion-mouth" />
-        </span>
-        {Glyph !== undefined && (
-          <span
-            aria-hidden
-            data-testid="companion-tool-badge"
-            className="absolute -right-1 -bottom-1 grid size-5 place-items-center rounded-full border border-border-strong bg-surface-3 text-foreground"
-          >
-            <Glyph className="size-3" />
-          </span>
-        )}
-        {asks && (
-          <span
-            aria-hidden
-            className="absolute top-0 right-0 size-3 rounded-full border-2 border-surface-3 bg-status-needs-mark"
-          />
-        )}
+        <span aria-hidden className="companion-mark" />
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onClick={() => leave(false)}>

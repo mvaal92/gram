@@ -32,6 +32,13 @@ describe("lastExchange", () => {
     expect(lastExchange(messages)).toEqual({ asked: "second", reply: undefined });
     messages.push(message("assistant", [{ type: "text", text: "new reply" }]));
     expect(lastExchange(messages)).toEqual({ asked: "second", reply: "new reply" });
+    messages.push(
+      message("user", [
+        { type: "text", text: "3 threads changed" },
+        { type: "data-orchestration-digest", data: {} },
+      ]),
+    );
+    expect(lastExchange(messages).asked).toBe("second");
   });
 });
 
