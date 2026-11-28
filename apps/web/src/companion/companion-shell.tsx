@@ -262,6 +262,12 @@ function Exchange({
   const lastReply = history.findLast((message) => message.role === "assistant");
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
+  useLayoutSync(() => {
+    const element = scroller.current;
+    if (expanded || element === null) return;
+    pinned.current = true;
+    element.scrollTop = element.scrollHeight;
+  }, [expanded]);
   useSubscription(() => {
     const element = scroller.current;
     if (element === null) return undefined;
