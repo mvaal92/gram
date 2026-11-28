@@ -1,10 +1,10 @@
-import type { ThreadId, ThreadSummary, WorkspaceState } from "@gram/contracts";
+import type { PlanItem, ThreadId, ThreadSummary, WorkspaceState } from "@gram/contracts";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { ArrowUp } from "lucide-react";
 import { useMemo, useRef, useState, type FormEvent } from "react";
 
 import { useApi } from "@/api/context";
-import { useLayoutSync, useMountEffect } from "@/lib/effects";
+import { useLayoutSync, useMountEffect, useSubscription } from "@/lib/effects";
 import { Markdown } from "@/components/ai-elements/markdown";
 import { cn } from "@/lib/utils";
 import { MockCard } from "@/thread/mock-visuals";
@@ -14,7 +14,7 @@ import type { NeedsYouItem } from "@/orchestration/needs-you-items";
 import { useNeedsYouActions } from "@/orchestration/needs-you-row";
 import { StatusDot } from "@/orchestration/status-dot";
 import { useNeedsYouList } from "@/orchestration/use-needs-you";
-import { useWorkspaces } from "@/orchestration/use-orchestration";
+import { useOrchestratorLedger, useWorkspaces } from "@/orchestration/use-orchestration";
 import { useThreadFeed } from "@/stores/feeds";
 import { useThreadsStore } from "@/stores/threads";
 import { useViewWorkspace } from "@/views/view-workspace";
@@ -30,14 +30,22 @@ import {
   latestThread,
   needsPerson,
   ownLine,
+  planLine,
+  tasksLine,
+  tasksOf,
   workersLine,
   type ActiveTool,
+  type CompanionTask,
 } from "./companion-model";
+import { followStoredCompanion, useCompanion } from "./companion-store";
 import { isCompanionWindow, leaveCompanion } from "./desktop-companion";
 
 function useCompanionWorkspace(): WorkspaceState | undefined {
   const viewed = useViewWorkspace();
   const workspaces = useWorkspaces();
+  const linkedId = useCompanion((s) => s.workspaceId);
+  const linked = workspaces.find((w) => w.workspace.id === linkedId);
+  if (linked !== undefined) return linked;
   if (viewed?.workspace.orchestratorThreadId !== undefined) return viewed;
   return workspaces.find((w) => w.workspace.orchestratorThreadId !== undefined) ?? viewed;
 }
@@ -75,10 +83,20 @@ export function CompanionShell({ windowed = false }: { windowed?: boolean }) {
   const state = avatarState(target, watched);
   const asks = needsPerson(watched, needs.length);
   const asksHere = needs.some((item) => item.threadId !== undefined && item.threadId === threadId);
+  const ledger = useOrchestratorLedger(workspace?.workspace.id).data;
+  const tasks = useMemo(() => tasksOf(ledger), [ledger]);
+  const plan = planLine(target?.plan);
   const busy =
     (asksHere ? ownLine(target, true) : undefined) ??
     workersLine(watched, threadId) ??
-    ownLine(target);
+    ownLine(target) ??
+    (plan?.current === undefined
+      ? undefined
+      : { kind: "other" as const, label: `Plan ${plan.done}/${plan.total} · ${plan.current}` });
+  const settled =
+    target === undefined || (target.status !== "running" && target.status !== "starting");
+
+  useSubscription(() => followStoredCompanion(), []);
 
   useLayoutSync(() => {
     if (!windowed) return undefined;
@@ -100,6 +118,8 @@ export function CompanionShell({ windowed = false }: { windowed?: boolean }) {
         asks={asks}
         busy={busy}
         needs={needs}
+        tasks={tasks}
+        settled={settled}
         windowed={windowed}
         panel={
           <Bubble
@@ -107,6 +127,7 @@ export function CompanionShell({ windowed = false }: { windowed?: boolean }) {
             target={target}
             needs={needs}
             hosts={hostThreads(summaries)}
+            tasks={tasks}
             busy={busy}
           />
         }
@@ -120,12 +141,14 @@ function Bubble({
   target,
   needs,
   hosts,
+  tasks,
   busy,
 }: {
   workspace: WorkspaceState | undefined;
   target: ThreadSummary | undefined;
   needs: readonly NeedsYouItem[];
   hosts: readonly ThreadSummary[];
+  tasks: readonly CompanionTask[];
   busy: ActiveTool | undefined;
 }) {
   const api = useApi();
@@ -160,8 +183,9 @@ function Bubble({
         {hosts.map((summary) => (
           <HostCard key={summary.thread.id} summary={summary} onOpen={openFull} />
         ))}
+        <Tasks tasks={tasks} onOpen={openFull} />
         {target !== undefined ? (
-          <Exchange threadId={target.thread.id} busy={busy} />
+          <Exchange summary={target} busy={busy} />
         ) : workspace !== undefined ? (
           <div className="flex flex-col items-start gap-2 text-body text-muted-foreground">
             <span>No orchestrator runs in {workspace.workspace.name} yet.</span>
@@ -181,8 +205,139 @@ function Bubble({
 }
 
 const PLAN_MARK = { completed: "✓", inProgress: "•", pending: "○", cancelled: "–" } as const;
+const STEP_MARK = { done: "✓", doing: "•", todo: "○", blocked: "!", dropped: "–" } as const;
+const TASKS_SHOWN = 4;
+const DONE_SHOWN = 2;
 
-function Exchange({ threadId, busy }: { threadId: ThreadId; busy: ActiveTool | undefined }) {
+function Tasks({
+  tasks,
+  onOpen,
+}: {
+  tasks: readonly CompanionTask[];
+  onOpen: (threadId?: ThreadId) => void;
+}) {
+  if (tasks.length === 0) return null;
+  const live = tasks.filter((task) => task.phase !== "done");
+  const done = tasks.filter((task) => task.phase === "done").slice(0, DONE_SHOWN);
+  const shown = [...live, ...done].slice(0, TASKS_SHOWN);
+  return (
+    <section data-testid="companion-tasks" aria-label="Tasks" className="flex flex-col gap-0.5">
+      <h2 className="flex justify-between text-meta text-subtle">
+        <span>Tasks</span>
+        <span>{tasksLine(tasks)}</span>
+      </h2>
+      {shown.map((task) => (
+        <button
+          key={task.id}
+          type="button"
+          data-testid="companion-task"
+          data-phase={task.phase}
+          title={task.line === undefined ? task.title : `${task.title}\n${task.line}`}
+          onClick={() => onOpen(task.id)}
+          className="flex min-w-0 items-center gap-1.5 rounded-md py-0.5 text-left text-meta hover:bg-surface-2"
+        >
+          <StatusDot state={TASK_DOT[task.phase]} still={task.phase !== "doing"} />
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate",
+              task.phase === "done" && "text-muted-foreground",
+            )}
+          >
+            {task.title}
+          </span>
+          <span
+            className={cn(
+              "max-w-28 shrink-0 truncate",
+              task.phase === "needs"
+                ? "text-status-needs"
+                : task.phase === "failed"
+                  ? "text-destructive"
+                  : "text-subtle",
+            )}
+          >
+            {TASK_EDGE[task.phase](task)}
+          </span>
+        </button>
+      ))}
+    </section>
+  );
+}
+
+const TASK_DOT = { doing: "working", needs: "needs", done: "done", failed: "error" } as const;
+
+const TASK_EDGE: Record<CompanionTask["phase"], (task: CompanionTask) => string> = {
+  doing: (task) => task.progress ?? "running",
+  needs: () => "asks you",
+  done: () => "done",
+  failed: () => "failed",
+};
+
+function PlanList({
+  plan,
+  todos,
+}: {
+  plan: ThreadSummary["plan"];
+  todos: readonly PlanItem[] | undefined;
+}) {
+  const progress = planLine(plan);
+  if (plan !== undefined && progress !== undefined) {
+    return (
+      <section
+        data-testid="companion-plan"
+        aria-label="Plan"
+        className="flex flex-col gap-0.5 text-meta"
+      >
+        <h2 className="flex min-w-0 justify-between gap-2 text-subtle">
+          <span className="truncate">{plan.goal}</span>
+          <span className="shrink-0 font-mono">
+            {progress.done} of {progress.total}
+          </span>
+        </h2>
+        <ol className="flex flex-col gap-0.5">
+          {plan.steps
+            .filter((step) => step.status !== "dropped")
+            .map((step) => (
+              <li
+                key={step.id}
+                className={cn(
+                  "flex min-w-0 gap-1.5",
+                  step.status === "done" ? "text-subtle" : "text-muted-foreground",
+                  step.status === "doing" && "text-foreground",
+                )}
+              >
+                <span aria-hidden>{STEP_MARK[step.status]}</span>
+                <span className="truncate">{step.text}</span>
+              </li>
+            ))}
+        </ol>
+      </section>
+    );
+  }
+  if (todos === undefined || todos.length === 0) return null;
+  return (
+    <ol data-testid="companion-plan" className="flex flex-col gap-0.5 text-meta">
+      {todos.map((item, index) => (
+        <li
+          key={index}
+          className={cn(
+            "flex min-w-0 gap-1.5",
+            item.status === "completed" || item.status === "cancelled"
+              ? "text-subtle"
+              : "text-muted-foreground",
+          )}
+        >
+          <span aria-hidden>{PLAN_MARK[item.status]}</span>
+          <span className="truncate">
+            {item.status === "inProgress" ? (item.activeForm ?? item.content) : item.content}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function Exchange({ summary, busy }: { summary: ThreadSummary; busy: ActiveTool | undefined }) {
+  const threadId = summary.thread.id;
   const messages = useThreadFeed(threadId, (s) => s.messages);
   const plan = useThreadsStore((s) => s.plans[threadId]);
   const history = historyOf(messages);
@@ -233,26 +388,7 @@ function Exchange({ threadId, busy }: { threadId: ThreadId; busy: ActiveTool | u
         )}
         <span key={`${newest ?? ""}:${String(waiting)}`} ref={toNewest} aria-hidden />
       </div>
-      {plan !== undefined && plan.length > 0 && (
-        <ol data-testid="companion-plan" className="flex flex-col gap-0.5 text-meta">
-          {plan.map((item, index) => (
-            <li
-              key={index}
-              className={cn(
-                "flex min-w-0 gap-1.5",
-                item.status === "completed" || item.status === "cancelled"
-                  ? "text-subtle"
-                  : "text-muted-foreground",
-              )}
-            >
-              <span aria-hidden>{PLAN_MARK[item.status]}</span>
-              <span className="truncate">
-                {item.status === "inProgress" ? (item.activeForm ?? item.content) : item.content}
-              </span>
-            </li>
-          ))}
-        </ol>
-      )}
+      <PlanList plan={summary.plan} todos={plan} />
       {step !== undefined && (
         <div
           data-testid="companion-step"

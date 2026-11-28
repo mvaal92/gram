@@ -10,6 +10,9 @@ import {
   needsPerson,
   noticeDrops,
   ownLine,
+  planLine,
+  tasksLine,
+  tasksOf,
   workersLine,
 } from "./companion-model";
 
@@ -41,7 +44,7 @@ describe("lastExchange", () => {
     ];
     expect(lastExchange(messages)).toEqual({ asked: "second", reply: undefined });
     messages.push(message("assistant", [{ type: "text", text: "new reply" }]));
-    expect(lastExchange(messages)).toEqual({ asked: "second", reply: "new reply" });
+    expect(lastExchange(messages)).toMatchObject({ asked: "second", reply: "new reply" });
     messages.push(
       message("user", [
         { type: "text", text: "3 threads changed" },
@@ -99,29 +102,116 @@ describe("ownLine", () => {
   });
 });
 
-describe("noticeDrops", () => {
-  const seen = { reply: "Done: two lines.", keys: [], loaded: true, count: 0 };
-  const now = { reply: "Done: two lines.", needs: [], loaded: true, open: false };
+const task = (id: string, phase: "done" | "failed") =>
+  ({ id, title: `Task ${id}`, phase, line: `${id} ${phase}`, at: 1 }) as never;
 
-  it("drops each new reply on its own, even one that starts like the last", () => {
-    const first = noticeDrops(seen, { ...now, reply: "Done: companion-check.txt has three lines" });
-    const second = noticeDrops(first.seen, {
+const worker = (threadId: string, state: string, extra: object = {}) =>
+  ({ threadId, title: threadId, state, status: "idle", ...extra }) as never;
+
+const step = (text: string, status: string) => ({ id: text, text, status }) as never;
+
+describe("noticeDrops", () => {
+  const seen = { replies: ["m1"], keys: [], endings: [], loaded: true };
+  const now = {
+    reply: { id: "m1", text: "Done: two lines." },
+    settled: true,
+    needs: [],
+    endings: [],
+    loaded: true,
+    open: false,
+  };
+
+  it("drops each new reply once, never the earlier one again when it shows after a tool call", () => {
+    const first = noticeDrops(seen, { ...now, reply: { id: "m2", text: "Started a worker" } });
+    expect(first.reply?.text).toBe("Started a worker");
+    const midTurn = noticeDrops(first.seen, { ...now, reply: undefined, settled: false });
+    expect(midTurn.reply).toBeUndefined();
+    const back = noticeDrops(midTurn.seen, {
       ...now,
-      reply: "Done: companion-check.txt has four lines",
+      reply: { id: "m2", text: "Started a worker" },
     });
-    expect(first.reply?.key).not.toBe(second.reply?.key);
+    expect(back.reply).toBeUndefined();
+  });
+
+  it("waits for the turn to settle before a reply drops", () => {
+    const streaming = noticeDrops(seen, {
+      ...now,
+      reply: { id: "m3", text: "Look" },
+      settled: false,
+    });
+    expect(streaming.reply).toBeUndefined();
+    const settled = noticeDrops(streaming.seen, {
+      ...now,
+      reply: { id: "m3", text: "Looked: all fine." },
+    });
+    expect(settled.reply?.text).toBe("Looked: all fine.");
+  });
+
+  it("drops a task's end once, failed or done, and not what had ended before it loaded", () => {
+    const loading = noticeDrops(
+      { ...seen, loaded: false },
+      { ...now, endings: [task("old", "done")] },
+    );
+    expect(loading.ended).toBeUndefined();
+    const failed = noticeDrops(loading.seen, {
+      ...now,
+      endings: [task("old", "done"), task("w1", "failed")],
+    });
+    expect(failed.ended).toMatchObject({ tone: "failed", title: "Task w1", text: "w1 failed" });
+    const again = noticeDrops(failed.seen, {
+      ...now,
+      endings: [task("old", "done"), task("w1", "failed")],
+    });
+    expect(again.ended).toBeUndefined();
   });
 
   it("puts a new ask ahead of a reply, and says nothing while open or loading", () => {
-    const asked = noticeDrops(seen, {
-      ...now,
-      reply: "Next",
-      needs: [{ key: "a", title: "Allow Edit" }],
-    });
+    const fresh = { ...now, reply: { id: "m4", text: "Next" } };
+    const asked = noticeDrops(seen, { ...fresh, needs: [{ key: "a", title: "Allow Edit" }] });
     expect(asked.ask?.text).toBe("Allow Edit");
     expect(asked.reply).toBeUndefined();
-    expect(noticeDrops(seen, { ...now, reply: "New", open: true }).reply).toBeUndefined();
-    expect(noticeDrops({ ...seen, loaded: false }, { ...now, reply: "New" }).reply).toBeUndefined();
+    const open = noticeDrops(seen, { ...fresh, open: true });
+    expect(open.reply).toBeUndefined();
+    expect(noticeDrops(open.seen, fresh).reply).toBeUndefined();
+    expect(noticeDrops({ ...seen, loaded: false }, fresh).reply).toBeUndefined();
+  });
+});
+
+describe("tasksOf", () => {
+  it("lists what asks, then what runs with its plan progress, then how the rest ended", () => {
+    const tasks = tasksOf({
+      features: [
+        {
+          workers: [
+            worker("done", "delivered", { lastReport: { summary: "Added it", at: 2 } }),
+            worker("run", "working", { status: "running", plan: { done: 1, total: 3 } }),
+            worker("ask", "needsUser"),
+            worker("gone", "archived"),
+            worker("bad", "working", { status: "error", lastError: { text: "Usage limit" } }),
+          ],
+        },
+      ],
+    } as never);
+    expect(tasks.map((t) => [t.id, t.phase])).toEqual([
+      ["ask", "needs"],
+      ["run", "doing"],
+      ["bad", "failed"],
+      ["done", "done"],
+    ]);
+    expect(tasks[1]?.progress).toBe("1/3");
+    expect(tasks[2]?.line).toBe("Usage limit");
+    expect(tasksLine(tasks)).toBe("1 asks you · 1 running · 1 failed · 1 done");
+  });
+});
+
+describe("planLine", () => {
+  it("counts the steps done, leaves dropped ones out and names the one under way", () => {
+    expect(
+      planLine({
+        goal: "Ship",
+        steps: [step("a", "done"), step("b", "doing"), step("c", "todo"), step("d", "dropped")],
+      }),
+    ).toEqual({ done: 1, total: 3, current: "b" });
   });
 });
 

@@ -62,3 +62,35 @@ test("the icon drags to an edge without opening, stays there after a reload, and
   await icon.click();
   await expect(page.getByTestId("companion-bubble")).toBeVisible();
 });
+
+test("setup links a new orchestrator, turns the companion on and keeps the link", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto("/");
+  await expect(page.getByTestId("app-shell")).toBeVisible();
+
+  await page.getByTestId("companion-enter").click();
+  const setup = page.getByTestId("companion-setup");
+  await expect(setup).toBeVisible();
+  await setup.getByTestId("companion-setup-new").click();
+  await setup.getByTestId("companion-setup-name").fill("Companion e2e");
+  await setup.getByTestId("companion-setup-on").click();
+
+  await expect(page.getByTestId("app-shell")).toHaveCount(0);
+  await page.getByTestId("companion-avatar").click();
+  await expect(page.getByLabel("Message the orchestrator")).toBeVisible();
+
+  const linked = await page.evaluate(
+    () =>
+      (
+        JSON.parse(localStorage.getItem("gram.companion") ?? "{}") as {
+          state?: { workspaceId?: string };
+        }
+      ).state?.workspaceId,
+  );
+  expect(linked).toBeTruthy();
+  await page.reload();
+  await page.getByTestId("companion-avatar").click();
+  await expect(page.getByLabel("Message the orchestrator")).toBeVisible();
+});
