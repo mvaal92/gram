@@ -23,7 +23,7 @@ export function Sheet({
   talkTo,
   onOpen,
 }: {
-  sheet: CompanionSheet;
+  sheet: Exclude<CompanionSheet, { kind: "decide" }>;
   /** The thread a pick is sent to: the orchestrator the companion talks to. */
   talkTo: ThreadId | undefined;
   onOpen: (threadId?: ThreadId) => void;

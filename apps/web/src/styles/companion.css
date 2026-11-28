@@ -269,3 +269,30 @@
 .companion-sheet > div {
   scrollbar-width: thin;
 }
+
+/* The sheet and the decision view grow out of the icon's corner, calmly, and a step between asks
+   fades in place. Still when motion is reduced. */
+[data-motion="full"] .companion-sheet {
+  animation: companion-grow var(--dur-base) var(--ease-in-out) both;
+}
+.companion-beside[data-placement="below-end"] > .companion-sheet {
+  transform-origin: top right;
+}
+.companion-beside[data-placement="below-start"] > .companion-sheet {
+  transform-origin: top left;
+}
+.companion-beside[data-placement="above-end"] > .companion-sheet {
+  transform-origin: bottom right;
+}
+.companion-beside[data-placement="above-start"] > .companion-sheet {
+  transform-origin: bottom left;
+}
+@keyframes companion-grow {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+[data-motion="full"] .companion-decide-body {
+  animation: companion-fade var(--dur-base) ease-out both;
+}

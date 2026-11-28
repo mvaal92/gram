@@ -201,3 +201,33 @@ test("a shared mock is a compact card that opens in the sheet, and Pick sends th
   await page.keyboard.press("ControlOrMeta+Alt+6");
   await expect(page.getByText('Go with the "Guided" direction').first()).toBeVisible();
 });
+
+test("asks open a decision view in place of the chat, step one by one, and answer in place", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/t/t-flaky");
+  await expect(page.getByTestId("app-shell")).toBeVisible();
+  await page.keyboard.press("ControlOrMeta+Alt+6");
+  await page.getByTestId("companion-avatar").click();
+  const asks = page.getByTestId("companion-asks");
+  await expect(asks).toBeVisible();
+  await asks.click();
+
+  const decide = page.getByTestId("companion-decide");
+  await expect(decide).toBeVisible();
+  await expect(page.getByTestId("companion-bubble")).toHaveCount(0);
+  const position = decide.getByTestId("companion-decide-position");
+  await expect(position).toHaveText(/^1 of \d+$/);
+  await decide.getByRole("button", { name: "Next" }).click();
+  await expect(position).toHaveText(/^2 of \d+$/);
+  await decide.getByRole("button", { name: "Previous" }).click();
+  const title = await decide.getByTestId("companion-decide-title").textContent();
+  await decide.getByTestId("companion-decide-option").first().click();
+  await expect(position).toHaveText(/^1 of \d+$/);
+  await expect(decide.getByTestId("companion-decide-title")).not.toHaveText(title ?? "");
+
+  await decide.getByRole("button", { name: "Back to the chat" }).click();
+  await expect(page.getByTestId("companion-bubble")).toBeVisible();
+  await expect(asks).toBeVisible();
+});
