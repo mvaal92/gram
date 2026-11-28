@@ -3,6 +3,11 @@ import { createRootRouteWithContext } from "@tanstack/react-router";
 
 import { CompanionShell } from "@/companion/companion-shell";
 import { useCompanion } from "@/companion/companion-store";
+import {
+  desktopCompanion,
+  isCompanionWindow,
+  useDesktopCompanionSync,
+} from "@/companion/desktop-companion";
 import { ThemeRoot } from "@/components/theme-root";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NeedsYouSource } from "@/orchestration/use-needs-you";
@@ -23,13 +28,22 @@ function RootLayout() {
   useAppLifecycle();
   usePreloadAfterPaint();
   const companion = useCompanion((s) => s.on);
+  useDesktopCompanionSync();
+  const windowed = isCompanionWindow();
+  const inPlace = companion && desktopCompanion() === undefined;
 
   return (
     <ThemeRoot>
       <TooltipProvider>
         <NeedsYouSource />
-        {companion ? <CompanionShell /> : <AppShell />}
-        <AppOverlays />
+        {windowed ? (
+          <CompanionShell windowed />
+        ) : (
+          <>
+            {inPlace ? <CompanionShell /> : <AppShell />}
+            <AppOverlays />
+          </>
+        )}
       </TooltipProvider>
     </ThemeRoot>
   );

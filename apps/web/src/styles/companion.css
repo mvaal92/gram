@@ -8,6 +8,44 @@
 
 .companion-anchor {
   z-index: 20;
+  width: var(--companion-size, 40px);
+  height: var(--companion-size, 40px);
+}
+
+/* The desktop app's companion window: nothing but the companion over a clear window. */
+:root[data-companion-window],
+:root[data-companion-window] body,
+:root[data-companion-window] #root {
+  background: transparent;
+}
+:root[data-companion-window][data-look] body {
+  background: transparent;
+}
+:root[data-companion-window] .companion-pebble,
+:root[data-companion-window] .companion-glass {
+  -webkit-app-region: no-drag;
+}
+
+/* In its own window the panels size to themselves; the window then grows to fit them. */
+:root[data-companion-window] .companion-beside {
+  max-width: none;
+}
+:root[data-companion-window] .companion-panel {
+  width: 21.25rem;
+  max-width: none;
+  max-height: 36rem;
+}
+:root[data-companion-window] .companion-hint {
+  max-width: 20rem;
+}
+
+/* A ring around the icon the window manager moves the window by, where an app may not move its
+   own window (Wayland). The icon itself stays a button. */
+.companion-grip {
+  position: absolute;
+  inset: -10px;
+  border-radius: 9999px;
+  -webkit-app-region: drag;
 }
 [data-motion="full"] .companion-anchor:not([data-dragging]) {
   transition:
@@ -50,7 +88,6 @@
 
 /* Liquid glass. */
 .companion-glass {
-  position: relative;
   color: var(--fg);
   background: color-mix(
     in oklab,
@@ -67,6 +104,7 @@
 }
 .companion-panel,
 .companion-drop {
+  position: relative;
   border-radius: var(--companion-glass-radius, 18px);
 }
 .companion-glass::before {

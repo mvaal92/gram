@@ -6,6 +6,7 @@ import { toggleInbox } from "@/inbox/inbox-store";
 import { INBOX_TEST_ID } from "@/inbox/inbox-view";
 import { paneMoveKeys, THREAD_STEP_KEYS } from "@/keyboard/catalog";
 import { useCompanion } from "@/companion/companion-store";
+import { isCompanionWindow, leaveCompanion } from "@/companion/desktop-companion";
 import { keyLabel, registerShortcut, useShortcut } from "@/keyboard/registry";
 import { besideToggle, closeBeside, keepBeside } from "@/orchestration/beside-store";
 import { boardWorkspaceFor } from "@/orchestration/board-model";
@@ -58,7 +59,7 @@ export function useGlobalShortcuts() {
     keys: "mod+alt+6",
     label: "Companion mode",
     group: "Navigation",
-    run: () => useCompanion.getState().toggle(),
+    run: () => (isCompanionWindow() ? leaveCompanion() : useCompanion.getState().toggle()),
   });
 
   useShortcut({

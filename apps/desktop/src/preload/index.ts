@@ -12,6 +12,7 @@ import { contextBridge, ipcRenderer, webFrame, webUtils, type IpcRendererEvent }
 import { Channels } from "@gram/shell/channels";
 import {
   agentBrowsePreload,
+  companionPreload,
   composeBridge,
   connectionPreload,
   fontsPreload,
@@ -123,7 +124,14 @@ const base = {
   },
 } satisfies Omit<
   DesktopBridge,
-  "listFonts" | "reportConnection" | "keepInTray" | "tray" | "speech" | "preview" | "agentBrowse"
+  | "listFonts"
+  | "reportConnection"
+  | "keepInTray"
+  | "tray"
+  | "companion"
+  | "speech"
+  | "preview"
+  | "agentBrowse"
 >;
 
 const bridge: DesktopBridge = composeBridge(
@@ -133,6 +141,7 @@ const bridge: DesktopBridge = composeBridge(
   pagesPreload(ipc),
   connectionPreload(ipc),
   trayPreload(ipc),
+  companionPreload(ipc, process.argv),
   speechPreload(ipc, window),
   agentBrowsePreload(ipc),
   hostedDevicePreload(ipc),

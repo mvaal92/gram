@@ -75,4 +75,5 @@ export { installPageGuard } from "./modules/pages/guard.ts";
 export { pagesPreload } from "./modules/pages/preload.ts";
 export { previewPreload } from "./modules/preview/preload.ts";
 export { speechPreload } from "./modules/speech/preload.ts";
+export { companionPreload, COMPANION_ARG } from "./modules/companion/preload.ts";
 export { trayPreload } from "./modules/tray/preload.ts";
