@@ -620,3 +620,13 @@ export function withEndings(
   for (; next < ended.length; next += 1) rows.push({ kind: "ending", task: ended[next]! });
   return rows;
 }
+
+/**
+ * The answer an answered question's message carries (`answerMessage`): what the person picked or
+ * typed, so the chat can say "Answered: …" in place of the notice the orchestrator reads.
+ */
+export function answerIn(text: string): string | undefined {
+  const match =
+    /^Answer to \S+ in questions\.md \(“[\s\S]*?”\): ([\s\S]*?)\n\nGram has closed /u.exec(text);
+  return match?.[1]?.trim();
+}
