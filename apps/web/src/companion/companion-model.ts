@@ -31,20 +31,27 @@ export const needsPerson = (
 ): boolean =>
   needsYou > 0 || threads.some((t) => t.status === "needsApproval" || t.status === "needsInput");
 
-/** What a running worker is doing, for the working line when the companion's own turn names none. */
-export function workerLine(
+/**
+ * What the orchestrator's workers are doing, for the hint: how many run, and what the first of
+ * them is at ("2 workers · Running tests"). Nothing while none runs.
+ */
+export function workersLine(
   threads: readonly ThreadSummary[],
   own: ThreadId | undefined,
 ): ActiveTool | undefined {
-  const busy = threads.find(
-    (t) => t.thread.id !== own && t.status === "running" && t.activity !== undefined,
+  const running = threads.filter(
+    (t) => t.thread.id !== own && (t.status === "running" || t.status === "starting"),
   );
-  return busy === undefined
-    ? undefined
-    : { kind: "worker", label: `${busy.activity} · ${busy.thread.title}` };
+  if (running.length === 0) return undefined;
+  const count = `${running.length} worker${running.length === 1 ? "" : "s"}`;
+  const doing = running.find((t) => t.activity !== undefined && t.activity.trim() !== "")?.activity;
+  return {
+    kind: "worker",
+    label: doing === undefined ? `${count} · working` : `${count} · ${doing}`,
+  };
 }
 
-const textOf = (message: GramUIMessage): string =>
+export const textOf = (message: GramUIMessage): string =>
   message.parts
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n\n")
@@ -225,4 +232,18 @@ export function noticeDrops(
     ...(ask === undefined ? {} : { ask }),
     ...(reply === undefined ? {} : { reply }),
   };
+}
+
+/** The bubble's history: the last `limit` messages with words or a mock, the person's own and the agent's. */
+export function historyOf(
+  messages: readonly GramUIMessage[],
+  limit = 12,
+): readonly GramUIMessage[] {
+  return messages
+    .filter((message) =>
+      message.role === "user"
+        ? !fromGram(message) && textOf(message) !== ""
+        : textOf(message) !== "" || message.parts.some((part) => part.type === "data-mock"),
+    )
+    .slice(-limit);
 }

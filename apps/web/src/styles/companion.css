@@ -60,14 +60,9 @@
   width: var(--companion-size, 40px);
   height: var(--companion-size, 40px);
   background: var(--companion-body, var(--fg));
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklab, var(--surface-3) 35%, transparent),
-    0 4px 14px color-mix(in oklab, var(--fg) 18%, transparent);
 }
 .companion-pebble[data-lifted] {
   cursor: grabbing;
-  transform: scale(1.08);
-  box-shadow: 0 14px 30px color-mix(in oklab, var(--fg) 28%, transparent);
 }
 
 .companion-mark {
@@ -83,8 +78,20 @@
 }
 @keyframes companion-glow {
   50% {
-    box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 30%, transparent);
+    opacity: 0.45;
   }
+}
+
+/* Nothing may draw past what it covers in the companion window: the window is clipped square, so
+   any shadow or halo there shows as a square edge on the desktop. */
+:root[data-companion-window] .companion-glass {
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--surface-3) 85%, var(--fg) 15%),
+    inset 0 -1px 0 color-mix(in oklab, var(--fg) 8%, transparent);
+}
+:root[data-companion-window] .companion-pebble:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 /* Liquid glass. */
@@ -183,4 +190,14 @@
     opacity: 0;
     transform: translateY(4px) scale(0.96);
   }
+}
+
+/* The bubble scrolls by wheel and touch alone: no scrollbar shows. */
+.companion-panel,
+.companion-panel * {
+  scrollbar-width: none;
+}
+.companion-panel::-webkit-scrollbar,
+.companion-panel *::-webkit-scrollbar {
+  display: none;
 }

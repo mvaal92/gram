@@ -1,13 +1,14 @@
 import type { ThreadId, ThreadSummary, WorkspaceState } from "@gram/contracts";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { ArrowUp, LayoutPanelLeft } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 import { useMemo, useRef, useState, type FormEvent } from "react";
 
 import { useApi } from "@/api/context";
 import { useLayoutSync, useMountEffect } from "@/lib/effects";
 import { Markdown } from "@/components/ai-elements/markdown";
+import { cn } from "@/lib/utils";
+import { MockCard } from "@/thread/mock-visuals";
 import { Button } from "@/components/ui/button";
-import { useShortcutHint } from "@/keyboard/use-shortcut-hint";
 import { answersInFull } from "@/inbox/inbox-detail";
 import type { NeedsYouItem } from "@/orchestration/needs-you-items";
 import { useNeedsYouActions } from "@/orchestration/needs-you-row";
@@ -24,11 +25,12 @@ import {
   avatarState,
   hostLabel,
   hostThreads,
-  lastExchange,
+  historyOf,
+  textOf,
   latestThread,
   needsPerson,
   ownLine,
-  workerLine,
+  workersLine,
   type ActiveTool,
 } from "./companion-model";
 import { isCompanionWindow, leaveCompanion } from "./desktop-companion";
@@ -72,11 +74,11 @@ export function CompanionShell({ windowed = false }: { windowed?: boolean }) {
   );
   const state = avatarState(target, watched);
   const asks = needsPerson(watched, needs.length);
+  const asksHere = needs.some((item) => item.threadId !== undefined && item.threadId === threadId);
   const busy =
-    ownLine(
-      target,
-      needs.some((item) => item.threadId !== undefined && item.threadId === threadId),
-    ) ?? workerLine(watched, threadId);
+    (asksHere ? ownLine(target, true) : undefined) ??
+    workersLine(watched, threadId) ??
+    ownLine(target);
 
   useLayoutSync(() => {
     if (!windowed) return undefined;
@@ -128,7 +130,6 @@ function Bubble({
 }) {
   const api = useApi();
   const navigate = useNavigate();
-  const keys = useShortcutHint("view.companion");
   const [starting, setStarting] = useState(false);
   const openFull = (threadId?: ThreadId) => {
     if (isCompanionWindow()) {
@@ -152,21 +153,6 @@ function Bubble({
       aria-label="Gram companion"
       className="companion-glass companion-panel flex max-h-[min(36rem,calc(100dvh-6rem))] w-85 max-w-full flex-col gap-2.5 p-3"
     >
-      <header className="flex items-center justify-between gap-2 text-meta text-muted-foreground">
-        <span className="truncate">
-          Gram · {workspace?.workspace.name ?? target?.thread.title ?? "no thread yet"}
-        </span>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          title={keys === undefined ? "Open full Gram" : `Open full Gram (${keys})`}
-          aria-label="Open full Gram"
-          data-testid="companion-full"
-          onClick={() => openFull()}
-        >
-          <LayoutPanelLeft />
-        </Button>
-      </header>
       <div className="flex min-h-0 flex-col gap-2 overflow-y-auto">
         {needs.slice(0, 2).map((item) => (
           <NeedsCard key={item.key} item={item} onOpen={openFull} />
@@ -194,12 +180,79 @@ function Bubble({
   );
 }
 
+const PLAN_MARK = { completed: "✓", inProgress: "•", pending: "○", cancelled: "–" } as const;
+
 function Exchange({ threadId, busy }: { threadId: ThreadId; busy: ActiveTool | undefined }) {
   const messages = useThreadFeed(threadId, (s) => s.messages);
-  const { asked, reply } = lastExchange(messages);
+  const plan = useThreadsStore((s) => s.plans[threadId]);
+  const history = historyOf(messages);
+  const lastReply = history.findLast((message) => message.role === "assistant");
+  const waiting = history.at(-1)?.role === "user";
   const step = activeTool(messages) ?? busy;
+  const [expanded, setExpanded] = useState(false);
+  const scroller = useRef<HTMLDivElement>(null);
+  const newest = history.at(-1)?.id;
+  const toNewest = (sentinel: HTMLSpanElement | null) => {
+    const element = scroller.current;
+    if (sentinel !== null && element !== null) element.scrollTop = element.scrollHeight;
+  };
   return (
     <>
+      <div
+        ref={scroller}
+        data-testid="companion-history"
+        data-expanded={expanded || undefined}
+        onWheel={() => setExpanded(true)}
+        className={cn(
+          "flex flex-col gap-2 overflow-y-auto overscroll-contain text-body leading-relaxed",
+          expanded ? "max-h-104" : "max-h-48",
+        )}
+      >
+        {history.map((message) =>
+          message.role === "user" ? (
+            <span
+              key={message.id}
+              className="companion-inset line-clamp-2 max-w-[85%] shrink-0 self-end rounded-lg px-2 py-1 text-meta text-muted-foreground"
+            >
+              {textOf(message)}
+            </span>
+          ) : (
+            <div
+              key={message.id}
+              className="flex shrink-0 flex-col gap-1.5"
+              data-testid={message === lastReply ? "companion-reply" : undefined}
+            >
+              {textOf(message) !== "" && <Markdown mode="static">{textOf(message)}</Markdown>}
+              {message.parts.map((part, index) =>
+                part.type === "data-mock" ? (
+                  <MockCard key={index} threadId={threadId} mock={part.data} />
+                ) : null,
+              )}
+            </div>
+          ),
+        )}
+        <span key={`${newest ?? ""}:${String(waiting)}`} ref={toNewest} aria-hidden />
+      </div>
+      {plan !== undefined && plan.length > 0 && (
+        <ol data-testid="companion-plan" className="flex flex-col gap-0.5 text-meta">
+          {plan.map((item, index) => (
+            <li
+              key={index}
+              className={cn(
+                "flex min-w-0 gap-1.5",
+                item.status === "completed" || item.status === "cancelled"
+                  ? "text-subtle"
+                  : "text-muted-foreground",
+              )}
+            >
+              <span aria-hidden>{PLAN_MARK[item.status]}</span>
+              <span className="truncate">
+                {item.status === "inProgress" ? (item.activeForm ?? item.content) : item.content}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
       {step !== undefined && (
         <div
           data-testid="companion-step"
@@ -207,19 +260,6 @@ function Exchange({ threadId, busy }: { threadId: ThreadId; busy: ActiveTool | u
         >
           <StatusDot state="working" still />
           <span className="truncate">{step.label}</span>
-        </div>
-      )}
-      {asked !== undefined && (
-        <span className="companion-inset max-w-[85%] self-end truncate rounded-lg px-2 py-1 text-meta text-muted-foreground">
-          {asked}
-        </span>
-      )}
-      {(reply !== undefined || asked !== undefined) && (
-        <div
-          data-testid="companion-reply"
-          className="max-h-48 overflow-y-auto text-body leading-relaxed"
-        >
-          {reply === undefined ? "On it…" : <Markdown mode="static">{reply}</Markdown>}
         </div>
       )}
     </>
