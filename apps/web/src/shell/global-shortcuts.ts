@@ -6,6 +6,7 @@ import { toggleInbox } from "@/inbox/inbox-store";
 import { INBOX_TEST_ID } from "@/inbox/inbox-view";
 import { paneMoveKeys, THREAD_STEP_KEYS } from "@/keyboard/catalog";
 import { useCompanion } from "@/companion/companion-store";
+import { useEmbedShell } from "@/embed/store";
 import { isCompanionWindow, leaveCompanion } from "@/companion/desktop-companion";
 import { keyLabel, registerShortcut, useShortcut } from "@/keyboard/registry";
 import { besideToggle, closeBeside, keepBeside } from "@/orchestration/beside-store";
@@ -47,6 +48,20 @@ const FOCUS_KEYS: readonly [FocusDirection, string][] = [
   ["down", "arrowdown"],
 ];
 
+/** Ctrl+Alt+6: into companion mode, or out of it from the companion's own window. */
+export function useCompanionShortcut() {
+  useShortcut({
+    id: "view.companion",
+    keys: "mod+alt+6",
+    label: "Companion mode",
+    group: "Navigation",
+    run: () => {
+      if (isCompanionWindow()) leaveCompanion();
+      else if (!useEmbedShell.getState().mounted) useCompanion.getState().toggle();
+    },
+  });
+}
+
 /** App-wide bindings; component-scoped ones (composer, cards) register where they live. */
 export function useGlobalShortcuts() {
   const navigate = useNavigate();
@@ -54,13 +69,7 @@ export function useGlobalShortcuts() {
   const router = useRouter();
   const currentId = useRouteThreadId();
 
-  useShortcut({
-    id: "view.companion",
-    keys: "mod+alt+6",
-    label: "Companion mode",
-    group: "Navigation",
-    run: () => (isCompanionWindow() ? leaveCompanion() : useCompanion.getState().toggle()),
-  });
+  useCompanionShortcut();
 
   useShortcut({
     id: "palette.open",

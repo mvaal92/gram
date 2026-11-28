@@ -14,7 +14,7 @@ import { NeedsYouSource } from "@/orchestration/use-needs-you";
 import { AppOverlays } from "@/shell/app-overlays";
 import { AppShell } from "@/shell/app-shell";
 import { usePreloadAfterPaint } from "@/shell/preload-after-paint";
-import { useAppLifecycle } from "@/shell/use-app-lifecycle";
+import { useAppLifecycle, useCompanionWindowLifecycle } from "@/shell/use-app-lifecycle";
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -29,33 +29,42 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 });
 
 function RootLayout() {
+  return isCompanionWindow() ? <CompanionWindowRoot /> : <AppRoot />;
+}
+
+function CompanionWindowRoot() {
+  useCompanionWindowLifecycle();
+  return (
+    <ThemeRoot>
+      <TooltipProvider>
+        <NeedsYouSource />
+        <Suspense fallback={null}>
+          <CompanionShell windowed />
+        </Suspense>
+      </TooltipProvider>
+    </ThemeRoot>
+  );
+}
+
+function AppRoot() {
   useAppLifecycle();
   usePreloadAfterPaint();
   const companion = useCompanion((s) => s.on);
   useDesktopCompanionSync();
-  const windowed = isCompanionWindow();
   const inPlace = companion && desktopCompanion() === undefined;
 
   return (
     <ThemeRoot>
       <TooltipProvider>
         <NeedsYouSource />
-        {windowed ? (
+        {inPlace ? (
           <Suspense fallback={null}>
-            <CompanionShell windowed />
+            <CompanionShell />
           </Suspense>
         ) : (
-          <>
-            {inPlace ? (
-              <Suspense fallback={null}>
-                <CompanionShell />
-              </Suspense>
-            ) : (
-              <AppShell />
-            )}
-            <AppOverlays />
-          </>
+          <AppShell />
         )}
+        <AppOverlays />
       </TooltipProvider>
     </ThemeRoot>
   );

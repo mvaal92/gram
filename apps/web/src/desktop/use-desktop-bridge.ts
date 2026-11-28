@@ -1,4 +1,6 @@
 import { chimeOf, ThreadId, workspaceMuted, type DesktopMenuAction } from "@gram/contracts";
+import { useCompanion } from "@/companion/companion-store";
+import { desktopCompanion } from "@/companion/desktop-companion";
 import { isTranslucentLook, PRESET_PALETTES, resolvePalette } from "@gram/themes";
 import { useNavigate } from "@tanstack/react-router";
 import * as Schema from "effect/Schema";
@@ -216,6 +218,9 @@ export function useDesktopBridge() {
           : isThreadId(threadId)
             ? threadId
             : undefined;
+      const companion = desktopCompanion();
+      if (companion !== undefined && !companion.isWindow && useCompanion.getState().on)
+        void companion.close();
       if (target) void navigate({ to: "/t/$threadId", params: { threadId: target } });
     });
 

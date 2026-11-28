@@ -50,6 +50,8 @@ export interface EmbedShellState {
   readonly newEntry: ShellNewEntry | undefined;
   /** Mounted by an app in front of Gram on a server with hosted features on. Set once, at mount. */
   readonly hosted: boolean;
+  /** Mounted by another app (`mountGram`) rather than Gram's own page. Set once, at mount. */
+  readonly mounted: boolean;
   /** The page at `/` in place of Gram's home. Set once, at mount. */
   readonly home: ComponentType<ShellPageProps> | undefined;
   /** The open sidebar's look, its head and its account. */
@@ -75,6 +77,7 @@ export const useEmbedShell = create<EmbedShellState>()(() => ({
   threads: "shown",
   panel: "shown",
   hosted: false,
+  mounted: false,
   attention: undefined,
   threadsPage: {},
   machines: {},
@@ -98,6 +101,7 @@ export const EMPTY_SHELL: EmbedShellState = {
   threads: "shown",
   panel: "shown",
   hosted: false,
+  mounted: false,
   attention: undefined,
   threadsPage: {},
   machines: {},

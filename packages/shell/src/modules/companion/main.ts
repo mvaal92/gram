@@ -117,36 +117,47 @@ const readStored = (path: string): Stored => {
   }
 };
 
-const showOverTiledWindows = (win: BrowserWindow, companionTitle: string) => {
+const showOverTiledWindows = (windows: readonly BrowserWindow[], companionTitle: string) => {
   const socket = waylandHyprland();
   if (socket === undefined) {
-    win.show();
+    for (const each of windows) each.show();
     return;
   }
-  const resizable = win.isResizable();
-  win.setResizable(false);
-  win.show();
+  const resizable = windows.map((each) => each.isResizable());
+  for (const each of windows) {
+    each.setResizable(false);
+    each.show();
+  }
   void floatAppWindows(socket, process.pid, companionTitle)
     .catch(() => undefined)
     .finally(() => {
-      if (!win.isDestroyed()) win.setResizable(resizable);
+      windows.forEach((each, index) => {
+        if (!each.isDestroyed()) each.setResizable(resizable[index] ?? true);
+      });
     });
 };
+
+const hidden = new Set<BrowserWindow>();
 
 const restore = (companionTitle: string) => {
   const windows = appWindows();
   for (const each of windows) {
     if (!each.webContents.isDestroyed()) each.webContents.send(Channels.companionClosed);
   }
-  const first = windows[0];
-  if (first !== undefined && !first.isDestroyed()) {
-    showOverTiledWindows(first, companionTitle);
-    first.focus();
-  }
+  const back = [...hidden].filter((each) => !each.isDestroyed());
+  hidden.clear();
+  const shown = back.length > 0 ? back : windows.slice(0, 1).filter((each) => !each.isDestroyed());
+  if (shown.length === 0) return;
+  showOverTiledWindows(shown, companionTitle);
+  shown[0]?.focus();
 };
 
 const hideAppWindows = () => {
-  for (const each of appWindows()) each.hide();
+  for (const each of appWindows()) {
+    if (!each.isVisible()) continue;
+    hidden.add(each);
+    each.hide();
+  }
 };
 
 /**
@@ -247,6 +258,9 @@ export function installCompanion(ipc: ShellIpc, deps: CompanionDeps) {
       void place(stored);
       hideAppWindows();
     });
+    created.webContents.on("render-process-gone", () => {
+      if (!created.isDestroyed()) created.close();
+    });
     created.once("closed", () => {
       void endDrag();
       if (win === created) {
@@ -299,7 +313,7 @@ export function installCompanion(ipc: ShellIpc, deps: CompanionDeps) {
   ipc.on(Channels.companionDragStart, (event, input) => {
     const grip = readPoint(input);
     if (grip === undefined || !own(event.sender) || drag !== undefined) return;
-    drag = serial(async () => {
+    const started = serial(async () => {
       const at = await where();
       if (at === undefined || placer === undefined) return undefined;
       const [mover, areas] = await Promise.all([placer.dragMover(), placer.areas()]);
@@ -323,6 +337,10 @@ export function installCompanion(ipc: ShellIpc, deps: CompanionDeps) {
         },
       );
       return { stop: follow.stop, area: at.area };
+    });
+    drag = started;
+    void started.then((follow) => {
+      if (follow === undefined && drag === started) drag = undefined;
     });
   });
   const endDrag = async () => {

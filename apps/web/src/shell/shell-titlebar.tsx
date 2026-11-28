@@ -81,6 +81,7 @@ export function ShellTitlebar({
   panelLeft: boolean;
 }) {
   const switcherInTitlebar = useEmbedShell((s) => s.sidebar.switcher === "titlebar");
+  const mountedElsewhere = useEmbedShell((s) => s.mounted);
   const togglePanel = useLayoutStore((s) => s.togglePanel);
   const beforeSetup = useBeforeSetup();
   const barThreadId = useTitlebarThread();
@@ -271,7 +272,7 @@ export function ShellTitlebar({
         className="flex shrink-0 items-center gap-0.5"
       >
         {(!needsYouPill || beforeSetup) && <InboxButton />}
-        {!settings && !beforeSetup && (
+        {!settings && !beforeSetup && !mountedElsewhere && (
           <Foldable level={FOLD_ICONS} gap={2}>
             <CompanionButton className="[-webkit-app-region:no-drag]" />
           </Foldable>

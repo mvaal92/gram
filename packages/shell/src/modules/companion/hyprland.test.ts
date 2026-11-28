@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   areaFor,
+  dispatched,
   hyprlandSocket,
   readClients,
   readCursor,
@@ -91,5 +92,13 @@ describe("tiledAppWindows", () => {
       ]),
     );
     expect(tiledAppWindows(clients, 7, "Gram companion")).toEqual(["0x2"]);
+  });
+});
+
+describe("dispatched", () => {
+  it("takes only Hyprland's ok as done, so a refused dispatch falls back to Electron", () => {
+    expect(dispatched("ok\n")).toBe(true);
+    expect(dispatched("Invalid dispatcher")).toBe(false);
+    expect(dispatched("")).toBe(false);
   });
 });

@@ -123,6 +123,7 @@ export const mountGram: MountGram = async (options) => {
       threads: shell.threads ?? "shown",
       panel: shell.panel ?? "shown",
       hosted,
+      mounted: true,
       attention: shell.attention,
       threadsPage: shell.threadsPage ?? {},
       machines: shell.machines ?? {},

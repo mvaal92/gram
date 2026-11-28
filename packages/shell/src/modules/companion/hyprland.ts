@@ -188,6 +188,9 @@ const dispatchMove = (address: string, box: Box): string =>
 const dispatchResize = (address: string, box: Box): string =>
   `dispatch hl.dsp.window.resize({ x = ${Math.round(box.width)}, y = ${Math.round(box.height)}, relative = false, window = "address:${address}" })`;
 
+/** Hyprland answers a dispatch it carried out with `ok`, and anything else with why it didn't. */
+export const dispatched = (reply: string): boolean => reply.trim() === "ok";
+
 /** Where the pointer is, in layout coordinates. */
 export function readCursor(json: string): { readonly x: number; readonly y: number } | undefined {
   const value: unknown = JSON.parse(json);
@@ -274,7 +277,8 @@ export function hyprlandPlacer(socket: string, pid: number, title: string) {
       const found = await client();
       if (found === undefined) return false;
       if (found.size[0] !== box.width || found.size[1] !== box.height) {
-        await hyprlandRequest(socket, dispatchResize(found.address, box));
+        if (!dispatched(await hyprlandRequest(socket, dispatchResize(found.address, box))))
+          return false;
         for (let waited = 0; waited < 600; waited += 15) {
           const now = await client();
           if (now === undefined) return false;

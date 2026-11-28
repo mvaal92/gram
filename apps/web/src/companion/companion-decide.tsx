@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { replyAction, type AskOption } from "@/orchestration/ask-model";
 import type { NeedsYouItem } from "@/orchestration/needs-you-items";
 import { useNeedsYouActions } from "@/orchestration/needs-you-row";
+import { AskDetails } from "@/orchestration/ask-stack";
+import { useAskStackStore } from "@/orchestration/ask-stack-store";
 import { imageDataUrl, useCheckoutImage } from "@/panels/files/image-preview";
 
 import { ResizeGrip, sizedStyle } from "./companion-resize";
@@ -114,6 +116,8 @@ function Decision({
   onAnswered: () => void;
 }) {
   const base = useNeedsYouActions();
+  const problems = useAskStackStore((s) => s.problems);
+  const problem = item.ask?.ids.map((id) => problems[id]).find((each) => each !== undefined);
   const actions = {
     answer: (each: NeedsYouItem, option: AskOption) => {
       base.answer(each, option);
@@ -170,6 +174,25 @@ function Decision({
             </div>
           ))}
         </dl>
+      )}
+      {ask !== undefined && (
+        <div data-testid="companion-decide-details" className="text-meta">
+          {ask.count > 1 && (
+            <p className="mb-1 text-muted-foreground">
+              Covers {ask.count} requests: {ask.members.map((member) => member.title).join(", ")}
+            </p>
+          )}
+          <AskDetails ask={ask} open={ask.detailsOpen === true} />
+        </div>
+      )}
+      {problem !== undefined && (
+        <p
+          role="alert"
+          data-testid="companion-decide-problem"
+          className="text-meta text-destructive"
+        >
+          {problem}
+        </p>
       )}
       {approval ? (
         <div className="flex flex-wrap gap-2">

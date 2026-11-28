@@ -6,7 +6,7 @@ import { useRefreshReviewRequestsOnFocus, useSeedReviewBotRepos } from "@/review
 import { useRememberSettingsReturn } from "@/settings/leave-settings";
 import { useSettingsSync } from "@/settings-sync";
 import { useRememberCameFrom } from "@/shell/came-from";
-import { useGlobalShortcuts } from "@/shell/global-shortcuts";
+import { useCompanionShortcut, useGlobalShortcuts } from "@/shell/global-shortcuts";
 import { useNeedsYouTitle } from "@/shell/use-needs-you-title";
 import { useAcknowledgeAttention } from "@/sidebar/use-acknowledge-attention";
 import { useServerEvents } from "@/stores/feeds";
@@ -19,6 +19,17 @@ import { useWhatsNewOnLaunch } from "@/whats-new/use-whats-new-on-launch";
  * sync, the desktop bridge, app-wide shortcuts and the launch checks. Their effects run in this
  * order.
  */
+/**
+ * What the desktop companion window runs: the server's events, settings sync and its own way
+ * back. Notifications, menus, the badge, update checks and what's-new stay with the app's window,
+ * so nothing happens twice.
+ */
+export function useCompanionWindowLifecycle(): void {
+  useServerEvents();
+  useSettingsSync();
+  useCompanionShortcut();
+}
+
 export function useAppLifecycle(): void {
   useServerEvents();
   useGlobalShortcuts();
