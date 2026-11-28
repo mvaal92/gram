@@ -239,11 +239,9 @@ function Presence({
   const placement = windowed ? onScreen : placementOf(dock);
   const moving = useRef(false);
   const hinting =
-    (windowed ? hovered && dwelt && !pressedSinceEnter : hovered) &&
-    !open &&
-    !customizing &&
-    drop.shown === undefined;
-  const resting = !open && !customizing && drop.shown === undefined && !hinting;
+    (windowed ? hovered && dwelt && !pressedSinceEnter : hovered) && !open && !customizing;
+  const dropShown = hinting ? undefined : drop.shown;
+  const resting = !open && !customizing && dropShown === undefined && !hinting;
   if (resting && placed) setPlaced(false);
   const findPlace = () => findPlacement(windowed, setOnScreen);
   useExternalSync(() => {
@@ -462,7 +460,7 @@ function Presence({
           {hint}
         </span>
       )}
-      {dragging === undefined && (open || customizing || drop.shown !== undefined) && (
+      {dragging === undefined && (open || customizing || dropShown !== undefined) && (
         <div
           className={besideStyle(placement)}
           data-placement={`${placement.vertical}-${placement.horizontal}`}

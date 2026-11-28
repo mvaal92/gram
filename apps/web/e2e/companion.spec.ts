@@ -70,6 +70,8 @@ test("setup links a new orchestrator, turns the companion on and keeps the link"
   await page.goto("/");
   await expect(page.getByTestId("app-shell")).toBeVisible();
 
+  await page.getByRole("button", { name: /^More/ }).first().click();
+  await page.getByTestId("menu-view").click();
   await page.getByTestId("companion-enter").click();
   const setup = page.getByTestId("companion-setup");
   await expect(setup).toBeVisible();

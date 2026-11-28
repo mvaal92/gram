@@ -1,7 +1,6 @@
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useState } from "react";
 
-import { CompanionButton } from "@/companion/companion-button";
 import { InboxButton } from "@/inbox/inbox-button";
 import { LaunchIssuesChip } from "@/launch-checks/banner";
 import { TitlebarOpenBeside } from "@/orchestration/worker-header";
@@ -81,7 +80,6 @@ export function ShellTitlebar({
   panelLeft: boolean;
 }) {
   const switcherInTitlebar = useEmbedShell((s) => s.sidebar.switcher === "titlebar");
-  const mountedElsewhere = useEmbedShell((s) => s.mounted);
   const togglePanel = useLayoutStore((s) => s.togglePanel);
   const beforeSetup = useBeforeSetup();
   const barThreadId = useTitlebarThread();
@@ -272,11 +270,6 @@ export function ShellTitlebar({
         className="flex shrink-0 items-center gap-0.5"
       >
         {(!needsYouPill || beforeSetup) && <InboxButton />}
-        {!settings && !beforeSetup && !mountedElsewhere && (
-          <Foldable level={FOLD_ICONS} gap={2}>
-            <CompanionButton className="[-webkit-app-region:no-drag]" />
-          </Foldable>
-        )}
         <LaunchIssuesChip className="[-webkit-app-region:no-drag]" />
         {!soloBar && !settings && <TitlebarPause className="[-webkit-app-region:no-drag]" />}
         {!beforeSetup && usageKept && (

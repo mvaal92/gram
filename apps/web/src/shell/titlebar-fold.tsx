@@ -21,6 +21,7 @@ import {
   Settings2,
   Telescope,
   Workflow,
+  CircleDot,
 } from "lucide-react";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -29,7 +30,8 @@ import { Button } from "@/components/ui/button";
 import { useHistoryStore } from "@/history/history-view";
 import { useShortcutHint } from "@/keyboard/use-shortcut-hint";
 import { MENU_ITEM, MENU_LABEL, MENU_POPUP } from "@/lib/selection";
-import { useGramSettingKept, useThreadsWorkspaceNoun } from "@/embed/store";
+import { useEmbedShell, useGramSettingKept, useThreadsWorkspaceNoun } from "@/embed/store";
+import { useCompanion } from "@/companion/companion-store";
 import { EXPLAIN } from "@/lib/explain";
 import { seeTerm } from "@/lib/first-use";
 import { usePhone, useTouch } from "@/lib/use-phone";
@@ -388,6 +390,7 @@ function ViewSubmenu({ threadId }: { threadId: ThreadId | undefined }) {
   const preset = useLayoutStore((s) => s.grid.preset);
   const touch = useTouch();
   const focusMode = useLayoutStore((s) => s.focusMode);
+  const mountedElsewhere = useEmbedShell((s) => s.mounted);
   return (
     <Submenu
       label="View"
@@ -429,6 +432,17 @@ function ViewSubmenu({ threadId }: { threadId: ThreadId | undefined }) {
         History
         <Keys id="history.open" />
       </Menu.Item>
+      {!mountedElsewhere && (
+        <Menu.Item
+          data-testid="companion-enter"
+          className={MENU_ITEM}
+          onClick={() => useCompanion.getState().setSetupOpen(true)}
+        >
+          <CircleDot aria-hidden />
+          Companion mode…
+          <Keys id="view.companion" />
+        </Menu.Item>
+      )}
       {!touch && SEPARATOR}
       {!touch && (
         <Menu.RadioGroup
