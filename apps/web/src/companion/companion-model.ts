@@ -545,7 +545,8 @@ export function historyOf(
     .filter((message) =>
       message.role === "user"
         ? !fromGram(message) && textOf(message) !== ""
-        : textOf(message) !== "" || message.parts.some((part) => part.type === "data-mock"),
+        : textOf(message) !== "" ||
+          message.parts.some((part) => part.type === "data-mock" || part.type === "data-doc"),
     )
     .slice(-limit);
 }

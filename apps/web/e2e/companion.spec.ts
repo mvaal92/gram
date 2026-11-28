@@ -156,3 +156,48 @@ test("the chat holds only messages; tasks and the plan open over it from the top
   await expect(page.getByTestId("app-shell")).toBeVisible();
   await expect(page).toHaveURL(/\/t\//);
 });
+
+test("a shared mock is a compact card that opens in the sheet, and Pick sends the choice", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/t/t-flaky");
+  await expect(page.getByTestId("app-shell")).toBeVisible();
+  await page.evaluate(() =>
+    window.gramMock!.simulateMessage(
+      "t-flaky" as never,
+      {
+        id: "m-companion-mock",
+        role: "assistant",
+        parts: [
+          { type: "text", text: "Two directions for the empty state." },
+          {
+            type: "data-mock",
+            id: "companion-mock-1",
+            data: {
+              title: "Empty state",
+              version: 2,
+              page: "/tmp/mock/v2.html",
+              directions: [
+                { name: "Quiet", shots: {} },
+                { name: "Guided", shots: {} },
+              ],
+            },
+          },
+        ],
+      } as never,
+    ),
+  );
+  await page.keyboard.press("ControlOrMeta+Alt+6");
+  await page.getByTestId("companion-avatar").click();
+  const card = page.getByTestId("companion-card").filter({ hasText: "Empty state" });
+  await expect(card).toHaveAttribute("data-kind", "mock");
+  await card.click();
+  const sheet = page.getByTestId("companion-sheet");
+  await expect(sheet).toBeVisible();
+  await expect(page.getByTestId("companion-bubble")).toHaveCount(0);
+  await sheet.getByRole("button", { name: "Pick this" }).nth(1).click();
+  await expect(sheet).toHaveCount(0);
+  await page.keyboard.press("ControlOrMeta+Alt+6");
+  await expect(page.getByText('Go with the "Guided" direction').first()).toBeVisible();
+});
