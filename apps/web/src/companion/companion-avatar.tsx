@@ -527,7 +527,9 @@ function DropHeading({ drop }: { drop: Drop }) {
   if (heading === undefined) return null;
   return (
     <span className={cn("mb-0.5 block truncate text-meta font-semibold", heading.className)}>
-      {drop.title === undefined ? heading.words : `${heading.words} · ${drop.title}`}
+      {drop.title === undefined
+        ? (drop.word ?? heading.words)
+        : `${drop.word ?? heading.words} · ${drop.title}`}
     </span>
   );
 }
@@ -538,7 +540,7 @@ function pingEnding(drop: Drop): void {
   if (bridge === undefined || !(bridge.companion?.isWindow ?? false)) return;
   bridge.notify({
     id: `companion:${drop.key}`,
-    title: `${drop.tone === "failed" ? "Failed" : "Done"}: ${drop.title ?? "task"}`,
+    title: `${drop.word ?? (drop.tone === "failed" ? "Failed" : "Done")}: ${drop.title ?? "task"}`,
     body: drop.text,
   });
 }
