@@ -99,6 +99,14 @@ export const startBox = (area: Box): Box => ({
 });
 
 /** The corner of `area` that `box` sits nearest: where the icon goes, so the window grows inward. */
+/** The icon inside the companion window: its resting square, in the corner the window grows from. */
+export const iconOf = (window: Box, corner: CompanionCorner): Box => ({
+  x: corner.endsWith("right") ? window.x + window.width - RESTING_SIZE : window.x,
+  y: corner.startsWith("bottom") ? window.y + window.height - RESTING_SIZE : window.y,
+  width: RESTING_SIZE,
+  height: RESTING_SIZE,
+});
+
 export const cornerIn = (box: Box, area: Box): CompanionCorner => {
   const right = box.x + box.width / 2 > area.x + area.width / 2;
   const bottom = box.y + box.height / 2 > area.y + area.height / 2;

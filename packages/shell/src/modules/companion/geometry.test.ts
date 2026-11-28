@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cornerIn, fitBox, readFit, readStep, startBox, within } from "./geometry.ts";
+import { cornerIn, fitBox, iconOf, readFit, readStep, startBox, within } from "./geometry.ts";
 
 const area = { x: 0, y: 0, width: 1920, height: 1080 };
 
@@ -48,5 +48,23 @@ describe("cornerIn", () => {
   it("names the nearest corner of the work area, so panels open toward the middle", () => {
     expect(cornerIn({ x: 1840, y: 16, width: 64, height: 64 }, area)).toBe("top-right");
     expect(cornerIn({ x: 10, y: 1000, width: 64, height: 64 }, area)).toBe("bottom-left");
+  });
+});
+
+describe("placement by the icon", () => {
+  it("opens above an icon in the lower half and below one in the upper half, judged by the icon, not the open window", () => {
+    const tall = { x: 1544, y: 16, width: 360, height: 900 };
+    expect(cornerIn(iconOf(tall, "top-right"), area)).toBe("top-right");
+    const low = { x: 1544, y: 160, width: 360, height: 900 };
+    expect(cornerIn(iconOf(low, "bottom-right"), area)).toBe("bottom-right");
+    expect(cornerIn({ x: 900, y: 600, width: 64, height: 64 }, area)).toBe("bottom-left");
+    expect(cornerIn({ x: 900, y: 400, width: 64, height: 64 }, area)).toBe("top-left");
+  });
+
+  it("keeps the icon where it is when the window grows the way its corner says", () => {
+    const resting = { x: 1700, y: 900, width: 64, height: 64 };
+    const corner = cornerIn(resting, area);
+    const open = fitBox(resting, { width: 360, height: 480, corner }, area);
+    expect(iconOf(open, corner)).toEqual(resting);
   });
 });
