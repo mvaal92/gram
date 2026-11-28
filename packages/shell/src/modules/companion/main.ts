@@ -18,11 +18,12 @@ import {
   within,
   type Box,
 } from "./geometry.ts";
-import { followPointer, type Point } from "./follow.ts";
+import { FOLLOW_MS, followPointer, type Point } from "./follow.ts";
 import { latestOnly } from "./latest.ts";
 import { areaFor, hyprlandPlacer, hyprlandSocket } from "./hyprland.ts";
 
-const DRAG_LIMIT_MS = 30_000;
+const DRAG_LIMIT_MS = 10_000;
+const DRAG_STILL_MS = 3_000;
 
 export interface CompanionDeps {
   /** A frameless, transparent window at `bounds` loading the companion page; not yet shown. */
@@ -59,7 +60,11 @@ const electronPlacer = (win: BrowserWindow): Placer => ({
   },
 });
 
-const compositorOrElectronPlacer = (win: BrowserWindow, title: string): Placer => {
+const compositorOrElectronPlacer = (
+  win: BrowserWindow,
+  title: string,
+  pressed: () => boolean,
+): Placer => {
   const socket = process.platform === "linux" ? hyprlandSocket() : undefined;
   if (socket === undefined || process.env["XDG_SESSION_TYPE"] !== "wayland") {
     return electronPlacer(win);
@@ -83,9 +88,9 @@ const compositorOrElectronPlacer = (win: BrowserWindow, title: string): Placer =
     },
     set: async (box) => {
       if (win.isDestroyed()) return;
-      if (await hyprland.resizeTo(box)) return;
+      if (await hyprland.resizeTo(box, !pressed())) return;
       await fallback.set(box);
-      await hyprland.moveTo(box);
+      await hyprland.moveTo(box, !pressed());
     },
   };
 };
@@ -214,7 +219,7 @@ export function installCompanion(ipc: ShellIpc, deps: CompanionDeps) {
     const stored = readStored(deps.storePath).box;
     const created = deps.create(stored ?? startBox(screen.getPrimaryDisplay().workArea));
     win = created;
-    placer = compositorOrElectronPlacer(created, deps.title);
+    placer = compositorOrElectronPlacer(created, deps.title, () => drag !== undefined);
     corner = "top-right";
     known = undefined;
     markCompanionWindow(created.webContents);
@@ -288,6 +293,7 @@ export function installCompanion(ipc: ShellIpc, deps: CompanionDeps) {
           cursor: () => placer?.cursor() ?? Promise.resolve(undefined),
           move: mover,
           clamp: (box) => within(box, areaFor(box, areas) ?? at.area),
+          still: { ticks: Math.round(DRAG_STILL_MS / FOLLOW_MS), onStill: () => void endDrag() },
           every: (ms, tick) => {
             const timer = setInterval(tick, ms);
             const limit = setTimeout(() => void endDrag(), DRAG_LIMIT_MS);

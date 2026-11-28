@@ -190,7 +190,7 @@ export function hyprlandPlacer(socket: string, pid: number, title: string) {
      * Hyprland places a floating window again when its size changes, so a move sent before that
      * is undone.
      */
-    async moveTo(box: Box): Promise<void> {
+    async moveTo(box: Box, resend = true): Promise<void> {
       for (let attempt = 0; attempt < 3; attempt++) {
         for (let waited = 0; waited < 600; waited += 30) {
           const found = await client();
@@ -204,14 +204,14 @@ export function hyprlandPlacer(socket: string, pid: number, title: string) {
         await hyprlandRequest(socket, dispatchMove(found.address, box));
         await sleep(30);
       }
-      await resendPointer(socket, box);
+      if (resend) await resendPointer(socket, box);
     },
     /**
      * Gives the window `box`'s size and place from the compositor's side. Hyprland keeps a window's
      * top-left corner when it resizes it, so a change of height alone moves nothing; a move follows
      * only when the place differs too. `false` when the window is gone.
      */
-    async resizeTo(box: Box): Promise<boolean> {
+    async resizeTo(box: Box, resend = true): Promise<boolean> {
       const found = await client();
       if (found === undefined) return false;
       if (found.size[0] !== box.width || found.size[1] !== box.height) {
@@ -227,7 +227,7 @@ export function hyprlandPlacer(socket: string, pid: number, title: string) {
       if (now === undefined) return false;
       if (now.at[0] !== box.x || now.at[1] !== box.y)
         await hyprlandRequest(socket, dispatchMove(now.address, box));
-      await resendPointer(socket, box);
+      if (resend) await resendPointer(socket, box);
       return true;
     },
     /** Where the pointer is now, in layout coordinates. */

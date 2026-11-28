@@ -10,7 +10,7 @@ import {
 } from "react";
 
 import { useAttachments } from "@/composer/use-attachments";
-import { useExternalSync, useSubscription } from "@/lib/effects";
+import { useExternalSync, useLatest, useSubscription } from "@/lib/effects";
 import { useFlash } from "@/lib/timers";
 import { cn } from "@/lib/utils";
 import type { NeedsYouItem } from "@/orchestration/needs-you-items";
@@ -332,6 +332,10 @@ function Presence({
     const held = press.current;
     const bounds = area();
     if (held === undefined || bounds === undefined) return;
+    if ((event.buttons & 1) === 0) {
+      endPress();
+      return;
+    }
     const dx = event.clientX - held.start.x;
     const dy = event.clientY - held.start.y;
     if (!held.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
@@ -365,16 +369,10 @@ function Presence({
     });
   };
   const tapped = useRef(false);
-  const onPointerUp = (event: PointerEvent<HTMLButtonElement>) => {
+  const endPress = () => {
     const held = press.current;
     const bounds = area();
     press.current = undefined;
-    if (held !== undefined && !held.moved && event.type === "pointerup") {
-      tapped.current = true;
-      drop.dismiss();
-      setOpen(!open);
-      return;
-    }
     if (held?.moved !== true) return;
     dragged.current = true;
     if (windowed) {
@@ -385,6 +383,36 @@ function Presence({
     if (dragging !== undefined && bounds !== undefined) setDock(snapDock(dragging, bounds));
     setDragging(undefined);
   };
+  const onPointerUp = (event: PointerEvent<HTMLButtonElement>) => {
+    const held = press.current;
+    if (event.currentTarget.hasPointerCapture(event.pointerId))
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    if (held !== undefined && !held.moved && event.type === "pointerup") {
+      press.current = undefined;
+      tapped.current = true;
+      drop.dismiss();
+      setOpen(!open);
+      return;
+    }
+    endPress();
+  };
+  const ending = useLatest(endPress);
+  useSubscription(() => {
+    const end = () => ending.current();
+    const hidden = () => {
+      if (document.visibilityState === "hidden") end();
+    };
+    window.addEventListener("pointerup", end, true);
+    window.addEventListener("pointercancel", end, true);
+    window.addEventListener("blur", end);
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      window.removeEventListener("pointerup", end, true);
+      window.removeEventListener("pointercancel", end, true);
+      window.removeEventListener("blur", end);
+      document.removeEventListener("visibilitychange", hidden);
+    };
+  }, [ending]);
   const onClick = () => {
     if (tapped.current || dragged.current) {
       tapped.current = false;
@@ -467,6 +495,7 @@ function Presence({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onLostCapture={endPress}
         fileOver={fileOver}
         files={files}
       />
@@ -635,6 +664,7 @@ function Avatar({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  onLostCapture,
   fileOver,
   files,
 }: {
@@ -656,6 +686,7 @@ function Avatar({
   onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
   onPointerMove: (event: PointerEvent<HTMLButtonElement>) => void;
   onPointerUp: (event: PointerEvent<HTMLButtonElement>) => void;
+  onLostCapture: () => void;
 }) {
   const openMenu = useCompanion((s) => s.setOpen);
   return (
@@ -685,6 +716,7 @@ function Avatar({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      onLostPointerCapture={onLostCapture}
       {...files}
       className="companion-pebble relative grid shrink-0 cursor-grab touch-none place-items-center rounded-full outline-none select-none focus-visible:focus-ring"
     >
