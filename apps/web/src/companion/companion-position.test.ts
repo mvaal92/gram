@@ -7,6 +7,7 @@ import {
   readDock,
   snapDock,
   resizedBy,
+  sizeToPointer,
 } from "./companion-position";
 
 const area = { width: 1000, height: 600 };
@@ -80,5 +81,39 @@ describe("resizedBy", () => {
       width: 760,
       height: 700,
     });
+  });
+});
+
+describe("sizeToPointer", () => {
+  const limits = { min: { width: 280, height: 200 }, max: { width: 760, height: 700 } };
+  it("puts the free corner under the pointer, measured from the icon's side, wherever the page moved", () => {
+    const surface = { left: 100, top: 50, right: 440, bottom: 340 };
+    expect(
+      sizeToPointer(
+        surface,
+        { x: 40, y: 400 },
+        { x: 0, y: 0 },
+        { vertical: "below", horizontal: "end" },
+        limits,
+      ),
+    ).toEqual({ width: 400, height: 350 });
+    expect(
+      sizeToPointer(
+        surface,
+        { x: 520, y: 0 },
+        { x: 0, y: 0 },
+        { vertical: "above", horizontal: "start" },
+        limits,
+      ),
+    ).toEqual({ width: 420, height: 340 });
+    expect(
+      sizeToPointer(
+        surface,
+        { x: 2000, y: 0 },
+        { x: 0, y: 0 },
+        { vertical: "below", horizontal: "end" },
+        limits,
+      ),
+    ).toEqual({ width: 280, height: 200 });
   });
 });

@@ -123,3 +123,35 @@ export function resizedBy(
     height: clampSize(height, limits.min.height, limits.max.height),
   };
 }
+
+/**
+ * A surface's size with its free corner under the pointer: measured from the surface's fixed
+ * edges (the icon's side) to the pointer, less where in the grip it was held. Both are page
+ * coordinates read in the same frame, so the window moving while it grows can't make the corner
+ * lag the pointer.
+ */
+export function sizeToPointer(
+  surface: {
+    readonly left: number;
+    readonly top: number;
+    readonly right: number;
+    readonly bottom: number;
+  },
+  pointer: Point,
+  grab: Point,
+  placement: Placement,
+  limits: SizeLimits,
+): { readonly width: number; readonly height: number } {
+  const width =
+    placement.horizontal === "end"
+      ? surface.right - pointer.x + grab.x
+      : pointer.x - surface.left + grab.x;
+  const height =
+    placement.vertical === "below"
+      ? pointer.y - surface.top + grab.y
+      : surface.bottom - pointer.y + grab.y;
+  return {
+    width: clampSize(width, limits.min.width, limits.max.width),
+    height: clampSize(height, limits.min.height, limits.max.height),
+  };
+}

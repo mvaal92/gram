@@ -3,7 +3,7 @@ import { useRef, type PointerEvent } from "react";
 import { useLatest, useSubscription } from "@/lib/effects";
 import { nextFrame } from "@/stores/frame-batch";
 
-import { resizedBy, type Placement, type SizeLimits } from "./companion-position";
+import { sizeToPointer, type Placement, type SizeLimits } from "./companion-position";
 import { useCompanion, type SizedSurface, type SurfaceSize } from "./companion-store";
 
 const LIMITS: Record<SizedSurface, SizeLimits> = {
@@ -46,6 +46,7 @@ export function ResizeGrip({ surface }: { surface: SizedSurface }) {
         readonly start: { readonly width: number; readonly height: number };
         readonly from: { readonly x: number; readonly y: number };
         readonly placement: Placement;
+        readonly grab: { readonly x: number; readonly y: number };
         readonly limits: SizeLimits;
         size: SurfaceSize;
         frame: (() => void) | undefined;
@@ -55,9 +56,10 @@ export function ResizeGrip({ surface }: { surface: SizedSurface }) {
   >(undefined);
 
   const apply = (held: NonNullable<typeof drag.current>) => {
-    held.size = resizedBy(
-      held.start,
-      { x: held.pointer.x - held.from.x, y: held.pointer.y - held.from.y },
+    held.size = sizeToPointer(
+      held.target.getBoundingClientRect(),
+      held.pointer,
+      held.grab,
       held.placement,
       held.limits,
     );
@@ -92,22 +94,28 @@ export function ResizeGrip({ surface }: { surface: SizedSurface }) {
     event.currentTarget.setPointerCapture(event.pointerId);
     const box = target.getBoundingClientRect();
     const start = { width: Math.round(box.width), height: Math.round(box.height) };
+    const placement = placementOf(target);
+    const grab = {
+      x: placement.horizontal === "end" ? event.clientX - box.left : box.right - event.clientX,
+      y: placement.vertical === "below" ? box.bottom - event.clientY : event.clientY - box.top,
+    };
     drag.current = {
       target,
       start,
-      from: { x: event.screenX, y: event.screenY },
-      placement: placementOf(target),
+      from: { x: event.clientX, y: event.clientY },
+      placement,
+      grab,
       limits: onScreen(LIMITS[surface]),
       size: start,
       frame: undefined,
-      pointer: { x: event.screenX, y: event.screenY },
+      pointer: { x: event.clientX, y: event.clientY },
     };
   };
   const onPointerMove = (event: PointerEvent<HTMLSpanElement>) => {
     const held = drag.current;
     if (held === undefined) return;
     if ((event.buttons & 1) === 0) return end();
-    held.pointer = { x: event.screenX, y: event.screenY };
+    held.pointer = { x: event.clientX, y: event.clientY };
     if (held.frame !== undefined) return;
     held.frame = nextFrame(() => {
       held.frame = undefined;
@@ -115,7 +123,7 @@ export function ResizeGrip({ surface }: { surface: SizedSurface }) {
     });
   };
   const onRelease = (event: PointerEvent<HTMLSpanElement>) => {
-    if (drag.current !== undefined) drag.current.pointer = { x: event.screenX, y: event.screenY };
+    if (drag.current !== undefined) drag.current.pointer = { x: event.clientX, y: event.clientY };
     if (event.currentTarget.hasPointerCapture(event.pointerId))
       event.currentTarget.releasePointerCapture(event.pointerId);
     end();
