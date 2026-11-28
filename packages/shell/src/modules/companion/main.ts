@@ -8,6 +8,7 @@ import { appWindows, markCompanionWindow } from "../../electron/decision-windows
 import type { ShellIpc } from "../ipc.ts";
 import {
   cornerIn,
+  iconOf,
   fitBox,
   readFit,
   readPoint,
@@ -255,7 +256,7 @@ export function installCompanion(ipc: ShellIpc, deps: CompanionDeps) {
   ipc.handle(Channels.companionPlacement, async (_input, event) => {
     if (!own(event.sender)) return corner;
     const at = await serial(where);
-    if (at !== undefined) corner = cornerIn(at.box, at.area);
+    if (at !== undefined) corner = cornerIn(iconOf(at.box, corner), at.area);
     return corner;
   });
   const fit = latestOnly<NonNullable<ReturnType<typeof readFit>>>(

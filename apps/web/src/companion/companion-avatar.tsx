@@ -201,11 +201,12 @@ function useWindowFit(
   placement: Placement,
   resting: boolean,
   steady: boolean,
+  placed: boolean,
 ): void {
   useSubscription(() => {
     const root = anchor.current;
     const bridge = desktopCompanion();
-    if (!windowed || root === null || bridge === undefined) return undefined;
+    if (!windowed || root === null || bridge === undefined || !placed) return undefined;
     if (resting) {
       bridge.fit({ width: 64, height: 64, corner: cornerOf(placement) });
       return undefined;
@@ -252,7 +253,7 @@ function useWindowFit(
       observer.disconnect();
       root.removeEventListener("animationend", fit);
     };
-  }, [windowed, anchor, placement, resting, steady]);
+  }, [windowed, anchor, placement, resting, steady, placed]);
 }
 
 const besideStyle = ({ vertical, horizontal }: Placement): string =>
@@ -300,14 +301,20 @@ function Presence({
   const [dragging, setDragging] = useState<Point | undefined>(undefined);
   const dragged = useRef(false);
   const [onScreen, setOnScreen] = useState<Placement>(() => placementAt("top-right"));
+  const [placed, setPlaced] = useState(false);
+  const place = (found: Placement) => {
+    setOnScreen(found);
+    setPlaced(true);
+  };
   const placement = windowed ? onScreen : placementOf(dock);
   const moving = useRef(false);
   const resting = !open && drop.shown === undefined && (windowed || !hovered);
+  if (resting && placed) setPlaced(false);
   const findPlace = () => findPlacement(windowed, setOnScreen);
   useExternalSync(() => {
-    if (!resting) findPlacement(windowed, setOnScreen);
+    if (!resting) findPlacement(windowed, place);
   }, [resting, windowed]);
-  useWindowFit(windowed, anchor, placement, resting, open && !settled);
+  useWindowFit(windowed, anchor, placement, resting, open && !settled, resting || placed);
 
   const area = () => anchor.current?.parentElement?.getBoundingClientRect();
   const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
