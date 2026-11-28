@@ -20,6 +20,7 @@ import {
   endingsOf,
   lastExchange,
   tasksLine,
+  openTasks,
   noticeDrops,
   type ActiveTool,
   type CompanionTask,
@@ -210,7 +211,9 @@ function Presence({
   const drop = useDrop({ open, loaded, reply, settled, needs, tasks });
   const [hovered, setHovered] = useState(false);
   const [fileOver, setFileOver] = useState(false);
-  const stuck = (tasks ?? []).filter((task) => task.phase === "failed").length;
+  const dismissed = useCompanion((s) => s.dismissed);
+  const shownTasks = openTasks(tasks ?? [], dismissed);
+  const stuck = shownTasks.filter((task) => task.phase === "failed").length;
   const anchor = useRef<HTMLDivElement>(null);
   const press = useRef<{ start: Point; offset: Point; moved: boolean } | undefined>(undefined);
   const [dragging, setDragging] = useState<Point | undefined>(undefined);
@@ -343,7 +346,7 @@ function Presence({
     : (tool?.label ??
       (state === "error"
         ? "Something failed"
-        : (tasksLine(tasks ?? []) ?? "Gram · nothing running")));
+        : (tasksLine(shownTasks) ?? "Gram · nothing running")));
   const files = {
     onDragEnter: (event: DragEvent<HTMLButtonElement>) => {
       if (onFiles === undefined || !event.dataTransfer.types.includes("Files")) return;

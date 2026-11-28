@@ -397,7 +397,6 @@ export function tasksLine(tasks: readonly CompanionTask[]): string | undefined {
       ["doing", "running"],
       ["blocked", "blocked"],
       ["failed", "failed"],
-      ["done", "done"],
     ] as const
   )
     .map(([phase, words]) => ({ n: count(phase), words }))
@@ -405,6 +404,17 @@ export function tasksLine(tasks: readonly CompanionTask[]): string | undefined {
     .map(({ n, words }) => `${n} ${words}`);
   return parts.length === 0 ? undefined : parts.join(" · ");
 }
+
+/**
+ * The tasks the companion still shows: those under way, asking, blocked or failed. A finished one
+ * is announced once (its line in the chat, its drop) and then drops out; a blocked or failed one
+ * stays until it changes or the person dismisses it (by `endingKey`, so a new failure shows again).
+ */
+export const openTasks = (
+  tasks: readonly CompanionTask[],
+  dismissed: readonly string[],
+): readonly CompanionTask[] =>
+  tasks.filter((task) => task.phase !== "done" && !dismissed.includes(endingKey(task)));
 
 /** A plan the orchestrator keeps for one piece of work: its stages and the one it stands on. */
 export interface CompanionPlan {

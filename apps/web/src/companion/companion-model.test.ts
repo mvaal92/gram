@@ -19,6 +19,7 @@ import {
   topLineOf,
   withEndings,
   answerIn,
+  openTasks,
   workersLine,
 } from "./companion-model";
 
@@ -223,7 +224,7 @@ describe("tasksOf", () => {
     ]);
     expect(tasks[1]?.progress).toBe("1/3");
     expect(tasks[2]?.line).toBe("Usage limit");
-    expect(tasksLine(tasks)).toBe("1 asks you · 1 running · 1 failed · 1 done");
+    expect(tasksLine(tasks)).toBe("1 asks you · 1 running · 1 failed");
   });
 });
 
@@ -374,5 +375,17 @@ describe("answerIn", () => {
       "Gram has closed Q4 as answered. If you need more from the user, ask again.\n\n(answer key 1)";
     expect(answerIn(text)).toBe("RELEASE-NOTES.md");
     expect(answerIn("Answer the phone")).toBeUndefined();
+  });
+});
+
+describe("openTasks", () => {
+  it("drops finished tasks, keeps blocked and failed ones until dismissed, and shows a new failure again", () => {
+    const tasks = [endedAs("done"), endedAs("failed"), endedAs("doing")];
+    expect(openTasks(tasks, []).map((task) => task.phase)).toEqual(["failed", "doing"]);
+    expect(openTasks(tasks, ["failed:failed"]).map((task) => task.phase)).toEqual(["doing"]);
+    expect(openTasks(tasks, ["failed:done"]).map((task) => task.phase)).toEqual([
+      "failed",
+      "doing",
+    ]);
   });
 });

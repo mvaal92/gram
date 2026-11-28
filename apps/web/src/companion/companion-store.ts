@@ -58,6 +58,9 @@ export interface CompanionState {
   readonly sheet: CompanionSheet | undefined;
   /** Sizes set by dragging a surface's free corner; absent fits the content. */
   readonly sizes: Partial<Record<SizedSurface, SurfaceSize>>;
+  /** Blocked or failed tasks the person put away, by their ending, so a new failure shows again. */
+  readonly dismissed: readonly string[];
+  dismiss(key: string): void;
   setSize(surface: SizedSurface, size: SurfaceSize | undefined): void;
   showSheet(sheet: CompanionSheet | undefined): void;
   set(on: boolean): void;
@@ -85,6 +88,11 @@ export const useCompanion = create<CompanionState>()(
       setupOpen: false,
       sheet: undefined,
       sizes: {},
+      dismissed: [],
+      dismiss: (key) =>
+        set((s) => ({
+          dismissed: [...s.dismissed.filter((each) => each !== key), key].slice(-100),
+        })),
       setSize: (surface, size) =>
         set((s) => {
           const { [surface]: _gone, ...rest } = s.sizes;
@@ -102,7 +110,8 @@ export const useCompanion = create<CompanionState>()(
       name: "gram.companion",
       version: 1,
       storage: createJSONStorage(() => globalThis.localStorage),
-      partialize: ({ on, dock, workspaceId, skin, pings, sizes }) => ({
+      partialize: ({ on, dock, workspaceId, skin, pings, sizes, dismissed }) => ({
+        dismissed,
         on,
         dock,
         workspaceId,
@@ -111,7 +120,8 @@ export const useCompanion = create<CompanionState>()(
         sizes,
       }),
       merge: (stored, current) => {
-        const { on, dock, workspaceId, skin, pings, sizes } = (stored ?? {}) as {
+        const { on, dock, workspaceId, skin, pings, sizes, dismissed } = (stored ?? {}) as {
+          dismissed?: unknown;
           on?: unknown;
           dock?: unknown;
           workspaceId?: unknown;
@@ -128,6 +138,9 @@ export const useCompanion = create<CompanionState>()(
           ...(typeof workspaceId === "string" ? { workspaceId } : {}),
           skin: typeof skin === "string" ? skin : current.skin,
           pings: pings !== false,
+          dismissed: Array.isArray(dismissed)
+            ? dismissed.filter((each): each is string => typeof each === "string")
+            : [],
           sizes: {
             ...(chat === undefined ? {} : { chat }),
             ...(sheet === undefined ? {} : { sheet }),
