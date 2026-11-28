@@ -19,6 +19,8 @@ export interface ActiveTool {
   readonly kind: ToolKind;
   /** The step in a few words, as the transcript's collapsed line names it. */
   readonly label: string;
+  /** It waits on the person rather than working. */
+  readonly waiting?: true;
 }
 
 /** The avatar's mood: its own thread failed, or something it watches runs, or it rests. */
@@ -188,7 +190,7 @@ export function ownLine(
     summary.status === "needsInput" ||
     summary.pendingRequests.length > 0
   )
-    return { kind: "other", label: "Waiting for you" };
+    return { kind: "other", label: "Waiting for you", waiting: true };
   if (summary.activity !== undefined && summary.activity.trim() !== "")
     return { kind: "other", label: summary.activity };
   if (summary.status === "running" || summary.status === "starting")
@@ -203,6 +205,8 @@ export interface Drop {
   readonly text: string;
   /** The task it ends, for a `done` or `failed` drop. */
   readonly title?: string;
+  /** The heading's word when it isn't the tone's own: "Blocked" for a task that stopped short. */
+  readonly word?: string;
 }
 
 /** A reply as the drops see it: its message, so the same reply never speaks twice. */
@@ -267,6 +271,7 @@ export function noticeDrops(
           key: `end:${endingKey(newEnding)}`,
           tone: newEnding.phase === "failed" ? "failed" : "done",
           title: newEnding.title,
+          ...(newEnding.blocked === true ? { word: "Blocked" } : {}),
           text: excerpt(newEnding.line ?? newEnding.title, 140),
         }
       : undefined;
@@ -305,6 +310,8 @@ export interface CompanionTask {
   readonly phase: TaskPhase;
   /** What it is at, what it asks, how it ended or why it failed, in a few words. */
   readonly line?: string;
+  /** It stopped short and says why (`blocked`), rather than failing outright. */
+  readonly blocked?: true;
   /** Plan progress while it works, as `2/4`. */
   readonly progress?: string;
   readonly at: number;
@@ -315,7 +322,7 @@ const PHASE_OF: Record<WorkerLedgerEntry["state"], TaskPhase | undefined> = {
   working: "doing",
   needsUser: "needs",
   question: "needs",
-  blocked: "needs",
+  blocked: "failed",
   done: "done",
   inReview: "done",
   readyToMerge: "done",
@@ -347,6 +354,7 @@ const taskOf = (worker: WorkerLedgerEntry): CompanionTask | undefined => {
     phase,
     ...(line === undefined || line === "" ? {} : { line }),
     ...(progress === undefined ? {} : { progress }),
+    ...(worker.state === "blocked" && worker.status !== "error" ? { blocked: true as const } : {}),
     at: worker.lastReport?.at ?? 0,
   };
 };
@@ -377,11 +385,17 @@ export const endingsOf = (tasks: readonly CompanionTask[]): readonly CompanionTa
 
 /** The counts the hint and the tasks heading show: "2 running · 1 done". */
 export function tasksLine(tasks: readonly CompanionTask[]): string | undefined {
-  const count = (phase: TaskPhase) => tasks.filter((task) => task.phase === phase).length;
+  const count = (phase: TaskPhase | "blocked") =>
+    tasks.filter((task) =>
+      phase === "blocked"
+        ? task.blocked === true
+        : task.phase === phase && !(phase === "failed" && task.blocked === true),
+    ).length;
   const parts = (
     [
       ["needs", "asks you"],
       ["doing", "running"],
+      ["blocked", "blocked"],
       ["failed", "failed"],
       ["done", "done"],
     ] as const
@@ -399,6 +413,10 @@ export interface CompanionPlan {
   readonly done: number;
   readonly total: number;
   readonly current?: string;
+  /** When its stage last moved, so the latest plan leads. */
+  readonly at?: number;
+  /** The tasks that carry it out. */
+  readonly taskIds?: readonly string[];
 }
 
 /**
@@ -414,6 +432,9 @@ export function plansOf(
       title: group.group,
       state: group.state,
       stage: group.stage,
+      taskIds: ledger.features
+        .filter((feature) => group.features.includes(feature.feature))
+        .flatMap((feature) => feature.workers.map((worker) => worker.threadId)),
     })),
     ...ledger.features
       .filter((feature) => feature.group === undefined)
@@ -421,10 +442,11 @@ export function plansOf(
         title: feature.workers.at(-1)?.title ?? feature.feature,
         state: feature.state,
         stage: feature.stage,
+        taskIds: feature.workers.map((worker) => worker.threadId),
       })),
   ];
   return staged
-    .flatMap(({ title, state, stage }) => {
+    .flatMap(({ title, state, stage, taskIds }) => {
       if (stage === undefined) return [];
       const list = stage.plan ?? [];
       const finished =
@@ -442,10 +464,30 @@ export function plansOf(
           done: at,
           total: steps.length,
           ...(finished ? {} : { current: stage.stage }),
+          at: stage.setAt,
+          taskIds,
         },
       ];
     })
-    .toSorted((a, b) => Number(a.current === undefined) - Number(b.current === undefined));
+    .toSorted(
+      (a, b) =>
+        Number(a.current === undefined) - Number(b.current === undefined) ||
+        (b.at ?? 0) - (a.at ?? 0),
+    );
+}
+
+/**
+ * The plan worth showing: one under way, else the last one to finish while nothing newer has
+ * started since; once other work begins, a finished plan steps aside.
+ */
+export function shownPlan(
+  plans: readonly CompanionPlan[],
+  tasks: readonly CompanionTask[],
+): CompanionPlan | undefined {
+  const [first] = plans;
+  if (first === undefined || first.current !== undefined) return first;
+  const newest = tasks.toSorted((a, b) => b.at - a.at)[0];
+  return newest === undefined || (first.taskIds ?? []).includes(newest.id) ? first : undefined;
 }
 
 /** A thread's own plan (`set_plan`) in the same shape, for a solo thread the companion talks to. */

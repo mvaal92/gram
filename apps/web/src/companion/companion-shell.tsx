@@ -32,6 +32,7 @@ import {
   ownLine,
   planHint,
   plansOf,
+  shownPlan,
   tasksLine,
   tasksOf,
   threadPlanOf,
@@ -90,7 +91,7 @@ export function CompanionShell({ windowed = false }: { windowed?: boolean }) {
   const tasks = useMemo(() => tasksOf(ledger), [ledger]);
   const ledgerIn = workspace === undefined || ledger !== undefined;
   const plans = useMemo(() => plansOf(ledger), [ledger]);
-  const plan = plans[0] ?? threadPlanOf(target?.plan);
+  const plan = workspace === undefined ? threadPlanOf(target?.plan) : shownPlan(plans, tasks);
   const where = planHint(plan);
   const workers = workersLine(
     workspace === undefined
@@ -290,7 +291,7 @@ const TASK_EDGE: Record<CompanionTask["phase"], (task: CompanionTask) => string>
   doing: (task) => task.progress ?? "running",
   needs: () => "asks you",
   done: () => "done",
-  failed: () => "failed",
+  failed: (task) => (task.blocked === true ? "blocked" : "failed"),
 };
 
 function PlanList({
@@ -372,11 +373,9 @@ function Exchange({
   const plan = useThreadsStore((s) => s.plans[threadId]);
   const history = historyOf(messages);
   const lastReply = history.findLast((message) => message.role === "assistant");
-  const waiting = history.at(-1)?.role === "user";
   const step = activeTool(messages) ?? busy;
   const [expanded, setExpanded] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
-  const newest = history.at(-1)?.id;
   const pinned = useRef(true);
   useSubscription(() => {
     const element = scroller.current;
@@ -388,14 +387,21 @@ function Exchange({
       pinned.current = element.scrollHeight - element.scrollTop - element.clientHeight < 8;
     };
     const observer = new ResizeObserver(toEnd);
-    for (const child of element.children) observer.observe(child);
+    const watchAll = () => {
+      observer.observe(element);
+      for (const child of element.children) observer.observe(child);
+      toEnd();
+    };
+    const added = new MutationObserver(watchAll);
+    added.observe(element, { childList: true });
     element.addEventListener("scroll", onScroll, { passive: true });
-    toEnd();
+    watchAll();
     return () => {
       observer.disconnect();
+      added.disconnect();
       element.removeEventListener("scroll", onScroll);
     };
-  }, [newest, waiting, expanded]);
+  }, []);
   return (
     <>
       <div
@@ -438,7 +444,7 @@ function Exchange({
           data-testid="companion-step"
           className="flex min-w-0 items-center gap-1.5 font-mono text-meta text-muted-foreground"
         >
-          <StatusDot state="working" still />
+          <StatusDot state={step.waiting === true ? "needs" : "working"} still />
           <span className="truncate">{step.label}</span>
         </div>
       )}

@@ -13,6 +13,7 @@ import {
   planHint,
   planLine,
   plansOf,
+  shownPlan,
   tasksLine,
   tasksOf,
   workersLine,
@@ -223,15 +224,16 @@ describe("tasksOf", () => {
   });
 });
 
+const feature = (state: string, stage: string) =>
+  ({
+    feature: "f",
+    state,
+    stage: { plan: ["one", "two", "three"], stage },
+    workers: [],
+  }) as never;
+
 describe("plansOf", () => {
   it("reads a feature's stages as a plan standing on its stage, and a finished one as all done", () => {
-    const feature = (state: string, stage: string) =>
-      ({
-        feature: "f",
-        state,
-        stage: { plan: ["one", "two", "three"], stage },
-        workers: [],
-      }) as never;
     const [live] = plansOf({ features: [feature("working", "two")] });
     expect(live).toMatchObject({ done: 1, total: 3, current: "two" });
     expect(planHint(live)).toBe("Step 2 of 3 · two");
@@ -245,6 +247,26 @@ describe("plansOf", () => {
       groups: [{ group: "plan-check", state: "working", stage: { stage: "Step 2" } }],
     } as never);
     expect(planHint(grouped)).toBe("Step 2");
+    const latest = plansOf({
+      features: [],
+      groups: [
+        { group: "old", state: "delivered", stage: { stage: "b", plan: ["a", "b"], setAt: 1 } },
+        { group: "new", state: "delivered", stage: { stage: "b", plan: ["a", "b"], setAt: 2 } },
+      ],
+    } as never);
+    expect(latest[0]?.title).toBe("new");
+  });
+});
+
+const doneTask = (id: string, at: number) => ({ id, title: id, phase: "done", at }) as never;
+
+describe("shownPlan", () => {
+  it("keeps a finished plan until other work starts, and a live one always", () => {
+    const done = { title: "p", steps: [], done: 2, total: 2, taskIds: ["w1"] };
+    expect(shownPlan([done], [doneTask("w1", 2), doneTask("w0", 1)])).toBe(done);
+    expect(shownPlan([done], [doneTask("w1", 2), doneTask("w9", 3)])).toBeUndefined();
+    const live = { ...done, current: "b" };
+    expect(shownPlan([live], [doneTask("w9", 3)])).toBe(live);
   });
 });
 
