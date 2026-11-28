@@ -18,6 +18,7 @@ import {
   type Box,
 } from "./geometry.ts";
 import { followPointer, type Point } from "./follow.ts";
+import { latestOnly } from "./latest.ts";
 import { areaFor, hyprlandPlacer, hyprlandSocket } from "./hyprland.ts";
 
 const DRAG_LIMIT_MS = 30_000;
@@ -64,6 +65,7 @@ const compositorOrElectronPlacer = (win: BrowserWindow, title: string): Placer =
   }
   const hyprland = hyprlandPlacer(socket, process.pid, title);
   const fallback = electronPlacer(win);
+  win.setResizable(true);
   return {
     mapped: () => hyprland.mapped(),
     cursor: async () => (await hyprland.cursor()) ?? fallback.cursor(),
@@ -80,6 +82,7 @@ const compositorOrElectronPlacer = (win: BrowserWindow, title: string): Placer =
     },
     set: async (box) => {
       if (win.isDestroyed()) return;
+      if (await hyprland.resizeTo(box)) return;
       await fallback.set(box);
       await hyprland.moveTo(box);
     },
@@ -255,15 +258,19 @@ export function installCompanion(ipc: ShellIpc, deps: CompanionDeps) {
     if (at !== undefined) corner = cornerIn(at.box, at.area);
     return corner;
   });
+  const fit = latestOnly<NonNullable<ReturnType<typeof readFit>>>(
+    (run) => void serial(run),
+    async (size) => {
+      const at = await where();
+      if (at === undefined) return;
+      await put(fitBox(at.box, size, at.area), at.area);
+    },
+  );
   ipc.on(Channels.companionFit, (event, input) => {
     const size = readFit(input);
     if (size === undefined || !own(event.sender)) return;
     corner = size.corner;
-    void serial(async () => {
-      const at = await where();
-      if (at === undefined) return;
-      await put(fitBox(at.box, size, at.area), at.area);
-    });
+    fit(size);
   });
   ipc.on(Channels.companionDragStart, (event, input) => {
     const grip = readPoint(input);
