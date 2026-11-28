@@ -17,6 +17,7 @@ import {
   tasksLine,
   tasksOf,
   topLineOf,
+  withEndings,
   workersLine,
 } from "./companion-model";
 
@@ -340,5 +341,27 @@ describe("topLineOf", () => {
       text: "1 failed",
     });
     expect(topLineOf({ needs: [], step: undefined, plan: undefined, tasks: [] })).toBeUndefined();
+  });
+});
+
+const sentAt = (id: string, createdAt: number) =>
+  ({ id, role: "assistant", parts: [], metadata: { createdAt } }) as never;
+const endedAt = (id: string, phase: string, when: number) =>
+  ({ id, title: id, phase, at: when }) as never;
+
+describe("withEndings", () => {
+  it("puts each ended task where it ended among the messages, and none from before them", () => {
+    const rows = withEndings(
+      [sentAt("m1", 10), sentAt("m2", 30)],
+      [
+        endedAt("w2", "failed", 40),
+        endedAt("w1", "done", 20),
+        endedAt("old", "done", 5),
+        endedAt("run", "doing", 25),
+      ],
+    );
+    expect(
+      rows.map((row) => (row.kind === "message" ? row.message.id : `end:${row.task.id}`)),
+    ).toEqual(["m1", "end:w1", "m2", "end:w2"]);
   });
 });

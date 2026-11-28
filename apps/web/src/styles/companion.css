@@ -74,10 +74,8 @@
 .companion-pebble[data-file-over] {
   box-shadow: inset 0 0 0 2px var(--accent);
 }
-.companion-pebble[data-file-over] .companion-mark {
-  width: 16px;
-  height: 16px;
-  background: var(--accent);
+.companion-pebble[data-file-over] {
+  --companion-mark: var(--accent);
 }
 :root[data-companion-window] .companion-pebble[data-file-over]:focus-visible {
   box-shadow: inset 0 0 0 2px var(--accent);
@@ -89,6 +87,32 @@
   height: 10px;
   border-radius: var(--companion-mark-radius, 9999px);
   background: var(--companion-mark, var(--surface-1));
+}
+
+/* Gram's mark, two crossing strokes, in the face's colour: the icon reads as Gram, not a button. */
+.companion-pebble[data-mark="cross"] .companion-mark {
+  position: relative;
+  width: 16px;
+  height: 18px;
+  background: none;
+}
+.companion-pebble[data-mark="cross"] .companion-mark::before,
+.companion-pebble[data-mark="cross"] .companion-mark::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 3.5px;
+  height: 18px;
+  margin-left: -1.75px;
+  border-radius: 9999px;
+  background: var(--companion-mark, var(--surface-1));
+}
+.companion-pebble[data-mark="cross"] .companion-mark::before {
+  transform: rotate(32deg);
+}
+.companion-pebble[data-mark="cross"] .companion-mark::after {
+  transform: rotate(-32deg);
 }
 
 [data-motion="full"] .companion-pebble[data-face-motion="glow"] .companion-mark {
@@ -110,6 +134,13 @@
 :root[data-companion-window] .companion-pebble:focus-visible {
   outline: none;
   box-shadow: none;
+}
+
+/* On the desktop the companion is glass whatever the app's Surfaces setting, which is about
+   Gram's own backdrop. Nothing behind a transparent window can be blurred, so the tint is strong
+   enough to read over a busy desktop; contrast, transparency and forced-colour fallbacks stay. */
+:root[data-companion-window] .companion-glass {
+  --companion-glass-alpha: 86%;
 }
 
 /* Liquid glass. */
@@ -161,13 +192,13 @@
     display: none;
   }
 }
-:root[data-surfaces="solid"] .companion-glass {
+:root[data-surfaces="solid"]:not([data-companion-window]) .companion-glass {
   background: var(--surface-3);
   border-color: var(--border-subtle);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
-:root[data-surfaces="solid"] .companion-glass::before {
+:root[data-surfaces="solid"]:not([data-companion-window]) .companion-glass::before {
   display: none;
 }
 @media (prefers-contrast: more), (prefers-reduced-transparency: reduce) {
@@ -295,4 +326,15 @@
 }
 [data-motion="full"] .companion-decide-body {
   animation: companion-fade var(--dur-base) ease-out both;
+}
+
+/* The chat's first line fades in under the top edge instead of being cut mid-glyph, and inline
+   code in replies sits close to the text at the bubble's narrow width. */
+[data-testid="companion-history"] {
+  mask-image: linear-gradient(to bottom, transparent, black 14px);
+  padding-top: 6px;
+}
+.companion-panel :not(pre) > code {
+  font-size: 0.86em;
+  padding-inline: 0.2em;
 }

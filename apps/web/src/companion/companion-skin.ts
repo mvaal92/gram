@@ -18,7 +18,7 @@ export type MotionPreset = "none" | "glow" | "blink" | "breathe" | "nudge";
 /** What the icon draws in one state: its body, and the mark inside it. */
 export interface SkinFace {
   readonly body: TokenRole;
-  readonly mark: { readonly shape: "dot" | "square"; readonly fill: TokenRole };
+  readonly mark: { readonly shape: "dot" | "square" | "cross"; readonly fill: TokenRole };
   readonly motion: MotionPreset;
 }
 
@@ -48,10 +48,10 @@ export const PEBBLE: CompanionSkin = {
   name: "Pebble",
   avatar: { shape: "circle", size: 40 },
   faces: {
-    idle: { body: "fg", mark: { shape: "dot", fill: "surface-1" }, motion: "none" },
-    working: { body: "fg", mark: { shape: "square", fill: "accent" }, motion: "glow" },
-    needs: { body: "fg", mark: { shape: "dot", fill: "status-needs-mark" }, motion: "none" },
-    error: { body: "danger", mark: { shape: "dot", fill: "surface-1" }, motion: "none" },
+    idle: { body: "fg", mark: { shape: "cross", fill: "surface-1" }, motion: "none" },
+    working: { body: "fg", mark: { shape: "cross", fill: "accent" }, motion: "glow" },
+    needs: { body: "fg", mark: { shape: "cross", fill: "status-needs-mark" }, motion: "none" },
+    error: { body: "danger", mark: { shape: "cross", fill: "surface-1" }, motion: "none" },
   },
   glass: { tint: "surface-3", alpha: 0.58, blur: 22, radius: 18 },
 };

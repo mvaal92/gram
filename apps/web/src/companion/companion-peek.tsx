@@ -95,11 +95,17 @@ function PeekView({ needs, hosts, tasks, plan, todos, busy, own, onOpen }: PeekP
         if (event.pointerType === "mouse") leave();
       }}
     >
-      <div className="flex min-w-0 shrink-0 items-center gap-1.5">
+      <div
+        className={cn(
+          "flex min-w-0 shrink-0 items-center gap-1.5",
+          line === undefined && needs.length === 0 && !hasMore && "hidden",
+        )}
+      >
         <button
           type="button"
           data-testid="companion-topline"
           data-tone={line?.tone}
+          data-rest={line?.tone === "stuck" || undefined}
           aria-expanded={shown}
           aria-label={line === undefined ? "Nothing running" : line.text}
           disabled={line === undefined && !hasMore}
@@ -158,8 +164,6 @@ function PeekView({ needs, hosts, tasks, plan, todos, busy, own, onOpen }: PeekP
 
 const PLAN_MARK = { completed: "✓", inProgress: "•", pending: "○", cancelled: "–" } as const;
 const STEP_MARK = { done: "✓", doing: "•", todo: "○" } as const;
-const TASKS_SHOWN = 4;
-const DONE_SHOWN = 2;
 
 function Tasks({
   tasks,
@@ -170,8 +174,8 @@ function Tasks({
 }) {
   if (tasks.length === 0) return null;
   const live = tasks.filter((task) => task.phase !== "done");
-  const done = tasks.filter((task) => task.phase === "done").slice(0, DONE_SHOWN);
-  const shown = [...live, ...done].slice(0, TASKS_SHOWN);
+  const done = tasks.filter((task) => task.phase === "done");
+  const shown = [...live, ...done];
   return (
     <section data-testid="companion-tasks" aria-label="Tasks" className="flex flex-col gap-0.5">
       <h2 className="flex justify-between text-meta text-subtle">
