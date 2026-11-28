@@ -346,3 +346,67 @@
   list-style: disc;
   padding-left: 1.2em;
 }
+
+/* The free corner of a surface, away from the icon: a resize cursor and a faint grip that shows on
+   hover. Which corner it is follows where the surface opened. */
+.companion-resize {
+  position: absolute;
+  z-index: 20;
+  width: 18px;
+  height: 18px;
+  touch-action: none;
+  -webkit-app-region: no-drag;
+}
+.companion-resize::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-color: color-mix(in oklab, var(--fg) 30%, transparent);
+  border-style: solid;
+  border-width: 0;
+  opacity: 0;
+  transition: opacity var(--dur-fast) ease-out;
+}
+:is(.companion-panel, .companion-sheet):hover > .companion-resize::after {
+  opacity: 1;
+}
+[data-placement="below-end"] .companion-resize {
+  left: 0;
+  bottom: 0;
+  cursor: nesw-resize;
+}
+[data-placement="below-end"] .companion-resize::after {
+  border-left-width: 2px;
+  border-bottom-width: 2px;
+  border-bottom-left-radius: 6px;
+}
+[data-placement="below-start"] .companion-resize {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}
+[data-placement="below-start"] .companion-resize::after {
+  border-right-width: 2px;
+  border-bottom-width: 2px;
+  border-bottom-right-radius: 6px;
+}
+[data-placement="above-end"] .companion-resize {
+  left: 0;
+  top: 0;
+  cursor: nwse-resize;
+}
+[data-placement="above-end"] .companion-resize::after {
+  border-left-width: 2px;
+  border-top-width: 2px;
+  border-top-left-radius: 6px;
+}
+[data-placement="above-start"] .companion-resize {
+  right: 0;
+  top: 0;
+  cursor: nesw-resize;
+}
+[data-placement="above-start"] .companion-resize::after {
+  border-right-width: 2px;
+  border-top-width: 2px;
+  border-top-right-radius: 6px;
+}

@@ -22,6 +22,23 @@ export type CompanionSheet =
       readonly options: readonly QuestionChoice[];
     };
 
+/** A surface the person sized by its free corner, in CSS pixels. */
+export interface SurfaceSize {
+  readonly width: number;
+  readonly height: number;
+}
+
+/** The surfaces that keep a size: the chat, and the sheet the decision view shares. */
+export type SizedSurface = "chat" | "sheet";
+
+const readSize = (value: unknown): SurfaceSize | undefined => {
+  if (value === null || typeof value !== "object") return undefined;
+  const { width, height } = value as { width?: unknown; height?: unknown };
+  return typeof width === "number" && typeof height === "number" && width > 0 && height > 0
+    ? { width: Math.round(width), height: Math.round(height) }
+    : undefined;
+};
+
 export interface CompanionState {
   /** The whole window is the companion: one icon and its dropdown, nothing else of Gram's. */
   readonly on: boolean;
@@ -39,6 +56,9 @@ export interface CompanionState {
   readonly setupOpen: boolean;
   /** The sheet grown out of the companion's corner, over its dropdown. */
   readonly sheet: CompanionSheet | undefined;
+  /** Sizes set by dragging a surface's free corner; absent fits the content. */
+  readonly sizes: Partial<Record<SizedSurface, SurfaceSize>>;
+  setSize(surface: SizedSurface, size: SurfaceSize | undefined): void;
   showSheet(sheet: CompanionSheet | undefined): void;
   set(on: boolean): void;
   toggle(): void;
@@ -64,6 +84,12 @@ export const useCompanion = create<CompanionState>()(
       pings: true,
       setupOpen: false,
       sheet: undefined,
+      sizes: {},
+      setSize: (surface, size) =>
+        set((s) => {
+          const { [surface]: _gone, ...rest } = s.sizes;
+          return { sizes: size === undefined ? rest : { ...rest, [surface]: size } };
+        }),
       showSheet: (sheet) => set(sheet === undefined ? { sheet } : { sheet, open: true }),
       set: (on) => set({ on, open: false }),
       toggle: () => set((s) => ({ on: !s.on, open: false })),
@@ -76,21 +102,25 @@ export const useCompanion = create<CompanionState>()(
       name: "gram.companion",
       version: 1,
       storage: createJSONStorage(() => globalThis.localStorage),
-      partialize: ({ on, dock, workspaceId, skin, pings }) => ({
+      partialize: ({ on, dock, workspaceId, skin, pings, sizes }) => ({
         on,
         dock,
         workspaceId,
         skin,
         pings,
+        sizes,
       }),
       merge: (stored, current) => {
-        const { on, dock, workspaceId, skin, pings } = (stored ?? {}) as {
+        const { on, dock, workspaceId, skin, pings, sizes } = (stored ?? {}) as {
           on?: unknown;
           dock?: unknown;
           workspaceId?: unknown;
           skin?: unknown;
           pings?: unknown;
+          sizes?: { chat?: unknown; sheet?: unknown };
         };
+        const chat = readSize(sizes?.chat);
+        const sheet = readSize(sizes?.sheet);
         return {
           ...current,
           on: on === true,
@@ -98,6 +128,10 @@ export const useCompanion = create<CompanionState>()(
           ...(typeof workspaceId === "string" ? { workspaceId } : {}),
           skin: typeof skin === "string" ? skin : current.skin,
           pings: pings !== false,
+          sizes: {
+            ...(chat === undefined ? {} : { chat }),
+            ...(sheet === undefined ? {} : { sheet }),
+          },
         };
       },
     },

@@ -22,6 +22,7 @@ import { useViewWorkspace } from "@/views/view-workspace";
 import { CompanionPresence } from "./companion-avatar";
 import { SharedCard, sharedIn } from "./companion-cards";
 import { Decide } from "./companion-decide";
+import { ResizeGrip, sizedStyle } from "./companion-resize";
 import { Sheet } from "./companion-sheet";
 import { Peek } from "./companion-peek";
 import {
@@ -193,6 +194,7 @@ function Bubble({
   const shrink = useDebounced(expanded && !inside && atNewest, SHRINK_MS);
   if (shrink && expanded && !inside && atNewest) setExpanded(false);
   const sheet = useCompanion((s) => s.sheet);
+  const sized = useCompanion((s) => s.sizes.chat);
   const openFull = (threadId?: ThreadId) => {
     if (isCompanionWindow()) {
       leaveCompanion(threadId);
@@ -224,8 +226,10 @@ function Bubble({
       onPointerLeave={(event) => {
         if (event.pointerType === "mouse") setInside(false);
       }}
+      style={sizedStyle(sized)}
       className="companion-glass companion-panel relative flex max-h-[min(36rem,calc(100dvh-6rem))] w-85 max-w-full flex-col gap-2 p-3 pt-1.5"
     >
+      <ResizeGrip surface="chat" />
       <Peek
         threadId={target?.thread.id}
         needs={needs}
@@ -235,9 +239,15 @@ function Bubble({
         busy={busy}
         onOpen={openFull}
       />
-      <div className="flex min-h-0 flex-col gap-2 overflow-y-auto">
+      <div
+        className={cn(
+          "flex min-h-0 flex-col gap-2 overflow-y-auto",
+          sized !== undefined && "flex-1",
+        )}
+      >
         {target !== undefined ? (
           <Exchange
+            sized={sized !== undefined}
             summary={target}
             expanded={expanded}
             onExpand={() => setExpanded(true)}
@@ -266,6 +276,7 @@ function Bubble({
 const SHRINK_MS = 600;
 
 function Exchange({
+  sized,
   summary,
   expanded,
   onExpand,
@@ -274,6 +285,7 @@ function Exchange({
   tasks,
 }: {
   tasks: readonly CompanionTask[];
+  sized: boolean;
   summary: ThreadSummary;
   expanded: boolean;
   onExpand: () => void;
@@ -344,10 +356,10 @@ function Exchange({
         ref={scroller}
         data-testid="companion-history"
         data-expanded={expanded || undefined}
-        onWheel={onExpand}
+        onWheel={sized ? undefined : onExpand}
         className={cn(
           "flex flex-col gap-2 overflow-y-auto overscroll-contain text-body leading-relaxed [overflow-anchor:none] transition-[max-height] duration-(--dur-move-base) ease-in-out motion-reduce:transition-none",
-          expanded ? "max-h-104" : "max-h-48",
+          sized ? "min-h-0 flex-1" : expanded ? "max-h-104" : "max-h-48",
         )}
       >
         {withEndings(history, tasks).map((row) => {

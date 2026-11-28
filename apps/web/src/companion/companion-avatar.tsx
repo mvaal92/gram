@@ -1,4 +1,4 @@
-import type { CompanionCorner, ThreadId } from "@gram/contracts";
+import type { ThreadId } from "@gram/contracts";
 import {
   useRef,
   useState,
@@ -6,7 +6,6 @@ import {
   type DragEvent,
   type PointerEvent,
   type ReactNode,
-  type RefObject,
 } from "react";
 
 import { useAttachments } from "@/composer/use-attachments";
@@ -40,6 +39,7 @@ import {
   type Point,
 } from "./companion-position";
 import { faceOf, PEBBLE, skinStyle } from "./companion-skin";
+import { cornerStyle, findPlacement, placementAt, useWindowFit } from "./companion-window-fit";
 import { useCompanion } from "./companion-store";
 import { desktopCompanion, leaveCompanion } from "./desktop-companion";
 
@@ -170,91 +170,6 @@ const dockStyle = ({ edge, t }: Dock): CSSProperties => {
       return { left: far, top: along };
   }
 };
-
-const WINDOW_INSET = 12;
-
-const cornerStyle = ({ vertical, horizontal }: Placement): CSSProperties => ({
-  ...(vertical === "below" ? { top: WINDOW_INSET } : { bottom: WINDOW_INSET }),
-  ...(horizontal === "end" ? { right: WINDOW_INSET } : { left: WINDOW_INSET }),
-});
-
-const placementAt = (corner: CompanionCorner): Placement => ({
-  vertical: corner.startsWith("top") ? "below" : "above",
-  horizontal: corner.endsWith("right") ? "end" : "start",
-});
-
-const findPlacement = (windowed: boolean, found: (placement: Placement) => void): void => {
-  const bridge = windowed ? desktopCompanion() : undefined;
-  if (bridge === undefined) return;
-  void bridge.placement().then(
-    (corner) => found(placementAt(corner)),
-    (error: unknown) => console.error("companion: placement", error),
-  );
-};
-
-const cornerOf = ({ vertical, horizontal }: Placement): CompanionCorner =>
-  `${vertical === "below" ? "top" : "bottom"}-${horizontal === "end" ? "right" : "left"}`;
-
-function useWindowFit(
-  windowed: boolean,
-  anchor: RefObject<HTMLDivElement | null>,
-  placement: Placement,
-  resting: boolean,
-  steady: boolean,
-  placed: boolean,
-): void {
-  useSubscription(() => {
-    const root = anchor.current;
-    const bridge = desktopCompanion();
-    if (!windowed || root === null || bridge === undefined || !placed) return undefined;
-    if (resting) {
-      bridge.fit({ width: 64, height: 64, corner: cornerOf(placement) });
-      return undefined;
-    }
-    let held = { width: 0, height: 0 };
-    const fit = () => {
-      window.scrollTo(0, 0);
-      let left = Number.POSITIVE_INFINITY;
-      let top = Number.POSITIVE_INFINITY;
-      let right = Number.NEGATIVE_INFINITY;
-      let bottom = Number.NEGATIVE_INFINITY;
-      for (const element of [
-        root,
-        ...root.querySelectorAll<HTMLElement>(":scope > *, :scope > .companion-beside > *"),
-      ]) {
-        const box = element.getBoundingClientRect();
-        if (box.width === 0 && box.height === 0) continue;
-        left = Math.min(left, box.left);
-        top = Math.min(top, box.top);
-        right = Math.max(right, box.right);
-        bottom = Math.max(bottom, box.bottom);
-      }
-      const end = placement.horizontal === "end";
-      const below = placement.vertical === "below";
-      const size = {
-        width: Math.ceil((end ? window.innerWidth - left : right) + WINDOW_INSET),
-        height: Math.ceil((below ? bottom : window.innerHeight - top) + WINDOW_INSET),
-      };
-      if (steady) {
-        size.width = Math.max(size.width, held.width);
-        size.height = Math.max(size.height, held.height);
-        if (size.width === held.width && size.height === held.height) return;
-      }
-      held = size;
-      bridge.fit({ ...size, corner: cornerOf(placement) });
-    };
-    const observer = new ResizeObserver(fit);
-    observer.observe(root);
-    for (const box of root.querySelectorAll(":scope > *, :scope > .companion-beside > *"))
-      observer.observe(box);
-    root.addEventListener("animationend", fit);
-    fit();
-    return () => {
-      observer.disconnect();
-      root.removeEventListener("animationend", fit);
-    };
-  }, [windowed, anchor, placement, resting, steady, placed]);
-}
 
 const besideStyle = ({ vertical, horizontal }: Placement): string =>
   cn(
