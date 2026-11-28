@@ -115,12 +115,14 @@ export function activeTool(messages: readonly GramUIMessage[]): ActiveTool | und
     return phase === "running" || phase === "pending";
   });
   if (running === undefined) return undefined;
-  return { kind: kindOf(toolNameOf(running)), label: stepLabel(running) };
+  const kind = kindOf(toolNameOf(running));
+  if (running.state === "input-streaming") return { kind, label: "Working…" };
+  return { kind, label: stepLabel(running) };
 }
 
 /**
  * Threads a host started for the person, or owns a conversation of (`Thread.conversations`): what
- * Runheim's `code_threads_*` calls and its chat apps make through `/embed/v1/thread-starts`. Live
+ * an embedding host's service calls and chat apps make through `/embed/v1/thread-starts`. Live
  * first, most recent first, at most `limit`.
  */
 export function hostThreads(
@@ -161,6 +163,7 @@ export const excerpt = (text: string, max: number): string => {
   const line = text
     .replace(/\[([^\]]*)\]\([^)]*\)/gu, "$1")
     .replace(/https?:\/\/\S+/gu, "")
+    .replace(/(?:~|\/[\w.-]+)(?:\/[\w.-]+)+\/([\w.-]+)/gu, "$1")
     .replace(/[#*_`>]/gu, "")
     .replace(/\s+/gu, " ")
     .trim();
@@ -217,6 +220,8 @@ export interface DropSeen {
   readonly endings: readonly string[];
   /** The thread's messages were in, so a reply that comes now is new rather than loaded. */
   readonly loaded: boolean;
+  /** The tasks were in, so a task that ends now is news rather than history. */
+  readonly tasksLoaded: boolean;
 }
 
 const SEEN_KEEP = 200;
@@ -237,6 +242,8 @@ export function noticeDrops(
     readonly settled: boolean;
     readonly needs: readonly { readonly key: string; readonly title: string }[];
     readonly endings: readonly CompanionTask[];
+    /** The tasks are in; until they are, every ending is history. */
+    readonly tasksLoaded: boolean;
     readonly loaded: boolean;
     readonly open: boolean;
   },
@@ -255,7 +262,7 @@ export function noticeDrops(
       : undefined;
   const newEnding = now.endings.find((task) => !seen.endings.includes(endingKey(task)));
   const ended: Drop | undefined =
-    speaks && ask === undefined && newEnding !== undefined
+    speaks && seen.tasksLoaded && ask === undefined && newEnding !== undefined
       ? {
           key: `end:${endingKey(newEnding)}`,
           tone: newEnding.phase === "failed" ? "failed" : "done",
@@ -278,10 +285,10 @@ export function noticeDrops(
       : keep(seen.replies, reply === undefined ? undefined : replyNew?.id);
   const endings = now.endings
     .map(endingKey)
-    .filter(() => quiet || ended !== undefined)
+    .filter(() => quiet || !seen.tasksLoaded || ended !== undefined)
     .reduce(keep, seen.endings);
   return {
-    seen: { replies, keys, endings, loaded: now.loaded },
+    seen: { replies, keys, endings, loaded: now.loaded, tasksLoaded: now.tasksLoaded },
     ...(ask === undefined ? {} : { ask }),
     ...(ended === undefined ? {} : { ended }),
     ...(reply === undefined ? {} : { reply }),
@@ -384,6 +391,90 @@ export function tasksLine(tasks: readonly CompanionTask[]): string | undefined {
     .map(({ n, words }) => `${n} ${words}`);
   return parts.length === 0 ? undefined : parts.join(" · ");
 }
+
+/** A plan the orchestrator keeps for one piece of work: its stages and the one it stands on. */
+export interface CompanionPlan {
+  readonly title: string;
+  readonly steps: readonly { readonly text: string; readonly status: "done" | "doing" | "todo" }[];
+  readonly done: number;
+  readonly total: number;
+  readonly current?: string;
+}
+
+/**
+ * The orchestrator's plans (a feature's stages, `set_stage`), live ones first: what the bubble
+ * lists and the hint counts. A finished feature's plan reads as all done.
+ */
+export function plansOf(
+  ledger: Pick<OrchestratorLedger, "features" | "groups"> | undefined,
+): readonly CompanionPlan[] {
+  if (ledger === undefined) return [];
+  const staged = [
+    ...(ledger.groups ?? []).map((group) => ({
+      title: group.group,
+      state: group.state,
+      stage: group.stage,
+    })),
+    ...ledger.features
+      .filter((feature) => feature.group === undefined)
+      .map((feature) => ({
+        title: feature.workers.at(-1)?.title ?? feature.feature,
+        state: feature.state,
+        stage: feature.stage,
+      })),
+  ];
+  return staged
+    .flatMap(({ title, state, stage }) => {
+      if (stage === undefined) return [];
+      const list = stage.plan ?? [];
+      const finished =
+        PHASE_OF[state] === "done" && (list.length === 0 || stage.stage === list.at(-1));
+      const at = finished ? list.length : Math.max(0, list.indexOf(stage.stage));
+      const steps = list.map((text, index) => ({
+        text,
+        status:
+          index < at ? ("done" as const) : index === at ? ("doing" as const) : ("todo" as const),
+      }));
+      return [
+        {
+          title,
+          steps,
+          done: at,
+          total: steps.length,
+          ...(finished ? {} : { current: stage.stage }),
+        },
+      ];
+    })
+    .toSorted((a, b) => Number(a.current === undefined) - Number(b.current === undefined));
+}
+
+/** A thread's own plan (`set_plan`) in the same shape, for a solo thread the companion talks to. */
+export function threadPlanOf(
+  plan: Pick<ThreadPlan, "goal" | "steps"> | undefined,
+): CompanionPlan | undefined {
+  const line = planLine(plan);
+  if (plan === undefined || line === undefined) return undefined;
+  return {
+    title: plan.goal,
+    steps: plan.steps
+      .filter((step) => step.status !== "dropped")
+      .map((step) => ({
+        text: step.text,
+        status: step.status === "done" ? "done" : step.status === "todo" ? "todo" : "doing",
+      })),
+    done: line.done,
+    total: line.total,
+    ...(line.current === undefined ? {} : { current: line.current }),
+  };
+}
+
+/** Where a plan stands, for the hint: "Step 2 of 3 · Review". */
+export const planHint = (plan: CompanionPlan | undefined): string | undefined =>
+  plan?.current === undefined
+    ? undefined
+    : plan.total === 0
+      ? plan.current
+      : `Step ${Math.min(plan.done + 1, plan.total)} of ${plan.total} · ${plan.current}`;
 
 /** The plan's progress in a few words: its step under way and how far along it is. */
 export function planLine(

@@ -10,7 +10,9 @@ import {
   needsPerson,
   noticeDrops,
   ownLine,
+  planHint,
   planLine,
+  plansOf,
   tasksLine,
   tasksOf,
   workersLine,
@@ -110,13 +112,22 @@ const worker = (threadId: string, state: string, extra: object = {}) =>
 
 const step = (text: string, status: string) => ({ id: text, text, status }) as never;
 
+describe("excerpt", () => {
+  it("names a file by its own name, not its whole path", () => {
+    expect(
+      excerpt("Created /home/x/work/.worktrees/a-b/companion-check.txt with one line", 80),
+    ).toBe("Created companion-check.txt with one line");
+  });
+});
+
 describe("noticeDrops", () => {
-  const seen = { replies: ["m1"], keys: [], endings: [], loaded: true };
+  const seen = { replies: ["m1"], keys: [], endings: [], loaded: true, tasksLoaded: true };
   const now = {
     reply: { id: "m1", text: "Done: two lines." },
     settled: true,
     needs: [],
     endings: [],
+    tasksLoaded: true,
     loaded: true,
     open: false,
   };
@@ -153,6 +164,14 @@ describe("noticeDrops", () => {
       { ...now, endings: [task("old", "done")] },
     );
     expect(loading.ended).toBeUndefined();
+    const ledgerLate = noticeDrops(
+      { ...seen, tasksLoaded: false },
+      { ...now, endings: [task("older", "done")] },
+    );
+    expect(ledgerLate.ended).toBeUndefined();
+    expect(
+      noticeDrops(ledgerLate.seen, { ...now, endings: [task("older", "done")] }).ended,
+    ).toBeUndefined();
     const failed = noticeDrops(loading.seen, {
       ...now,
       endings: [task("old", "done"), task("w1", "failed")],
@@ -201,6 +220,31 @@ describe("tasksOf", () => {
     expect(tasks[1]?.progress).toBe("1/3");
     expect(tasks[2]?.line).toBe("Usage limit");
     expect(tasksLine(tasks)).toBe("1 asks you · 1 running · 1 failed · 1 done");
+  });
+});
+
+describe("plansOf", () => {
+  it("reads a feature's stages as a plan standing on its stage, and a finished one as all done", () => {
+    const feature = (state: string, stage: string) =>
+      ({
+        feature: "f",
+        state,
+        stage: { plan: ["one", "two", "three"], stage },
+        workers: [],
+      }) as never;
+    const [live] = plansOf({ features: [feature("working", "two")] });
+    expect(live).toMatchObject({ done: 1, total: 3, current: "two" });
+    expect(planHint(live)).toBe("Step 2 of 3 · two");
+    const [between] = plansOf({ features: [feature("delivered", "one")] });
+    expect(planHint(between)).toBe("Step 1 of 3 · one");
+    const [ended] = plansOf({ features: [feature("delivered", "three")] });
+    expect(ended).toMatchObject({ done: 3, total: 3 });
+    expect(planHint(ended)).toBeUndefined();
+    const [grouped] = plansOf({
+      features: [],
+      groups: [{ group: "plan-check", state: "working", stage: { stage: "Step 2" } }],
+    } as never);
+    expect(planHint(grouped)).toBe("Step 2");
   });
 });
 

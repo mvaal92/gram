@@ -252,7 +252,7 @@ function Tile({
       className={cn(
         "flex min-w-0 flex-col items-center gap-1.5 rounded-lg border px-2 py-3 text-meta outline-none focus-visible:focus-ring",
         selected
-          ? "border-accent bg-surface-2 text-foreground"
+          ? "border-primary bg-surface-2 text-foreground"
           : "border-edge text-muted-foreground hover:bg-surface-2",
       )}
     >
