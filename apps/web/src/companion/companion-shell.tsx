@@ -4,7 +4,8 @@ import { ArrowUp, Plus } from "lucide-react";
 import { useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
 
 import { useApi } from "@/api/context";
-import { useLayoutSync, useMountEffect, useSubscription } from "@/lib/effects";
+import { useLatest, useLayoutSync, useMountEffect, useSubscription } from "@/lib/effects";
+import { useDebounced } from "@/lib/timers";
 import { Markdown } from "@/components/ai-elements/markdown";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -182,6 +183,10 @@ function Bubble({
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [inside, setInside] = useState(false);
+  const [atNewest, setAtNewest] = useState(true);
+  const shrink = useDebounced(expanded && !inside && atNewest, SHRINK_MS);
+  if (shrink && expanded && !inside && atNewest) setExpanded(false);
   const sheet = useCompanion((s) => s.sheet);
   const openFull = (threadId?: ThreadId) => {
     if (isCompanionWindow()) {
@@ -204,9 +209,13 @@ function Bubble({
   return (
     <section
       data-testid="companion-bubble"
+      data-pointer-inside={inside || undefined}
       aria-label="Gram companion"
+      onPointerEnter={(event) => {
+        if (event.pointerType === "mouse") setInside(true);
+      }}
       onPointerLeave={(event) => {
-        if (event.pointerType === "mouse") setExpanded(false);
+        if (event.pointerType === "mouse") setInside(false);
       }}
       className="companion-glass companion-panel relative flex max-h-[min(36rem,calc(100dvh-6rem))] w-85 max-w-full flex-col gap-2 p-3 pt-1.5"
     >
@@ -225,6 +234,7 @@ function Bubble({
             summary={target}
             expanded={expanded}
             onExpand={() => setExpanded(true)}
+            onAtNewest={setAtNewest}
             onOpen={openFull}
           />
         ) : workspace !== undefined ? (
@@ -245,15 +255,19 @@ function Bubble({
   );
 }
 
+const SHRINK_MS = 600;
+
 function Exchange({
   summary,
   expanded,
   onExpand,
+  onAtNewest,
   onOpen,
 }: {
   summary: ThreadSummary;
   expanded: boolean;
   onExpand: () => void;
+  onAtNewest: (atNewest: boolean) => void;
   onOpen: (threadId?: ThreadId) => void;
 }) {
   const threadId = summary.thread.id;
@@ -262,37 +276,58 @@ function Exchange({
   const lastReply = history.findLast((message) => message.role === "assistant");
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
+  const reportNewest = useLatest(onAtNewest);
+  const settling = useRef(false);
+  const wasExpanded = useRef(expanded);
   useLayoutSync(() => {
     const element = scroller.current;
-    if (expanded || element === null) return;
+    const shrinking = wasExpanded.current && !expanded;
+    wasExpanded.current = expanded;
+    if (!shrinking || element === null) return;
     pinned.current = true;
+    settling.current = getComputedStyle(element)
+      .transitionDuration.split(",")
+      .some((each) => Number.parseFloat(each) > 0);
     element.scrollTop = element.scrollHeight;
   }, [expanded]);
   useSubscription(() => {
     const element = scroller.current;
     if (element === null) return undefined;
     const toEnd = () => {
-      if (pinned.current) element.scrollTop = element.scrollHeight;
+      if (pinned.current || settling.current) element.scrollTop = element.scrollHeight;
+    };
+    const settled = () => {
+      settling.current = false;
+      toEnd();
     };
     const onScroll = () => {
-      pinned.current = element.scrollHeight - element.scrollTop - element.clientHeight < 8;
+      if (settling.current) return;
+      const at = element.scrollHeight - element.scrollTop - element.clientHeight < 8;
+      if (at !== pinned.current) reportNewest.current(at);
+      pinned.current = at;
     };
     const observer = new ResizeObserver(toEnd);
+    const box = new ResizeObserver(() => {
+      if (settling.current) toEnd();
+    });
+    box.observe(element);
     const watchAll = () => {
-      observer.observe(element);
       for (const child of element.children) observer.observe(child);
       toEnd();
     };
     const added = new MutationObserver(watchAll);
     added.observe(element, { childList: true });
     element.addEventListener("scroll", onScroll, { passive: true });
+    element.addEventListener("transitionend", settled);
     watchAll();
     return () => {
       observer.disconnect();
+      box.disconnect();
       added.disconnect();
       element.removeEventListener("scroll", onScroll);
+      element.removeEventListener("transitionend", settled);
     };
-  }, []);
+  }, [reportNewest]);
   return (
     <>
       <div
@@ -301,7 +336,7 @@ function Exchange({
         data-expanded={expanded || undefined}
         onWheel={onExpand}
         className={cn(
-          "flex flex-col gap-2 overflow-y-auto overscroll-contain text-body leading-relaxed",
+          "flex flex-col gap-2 overflow-y-auto overscroll-contain text-body leading-relaxed [overflow-anchor:none] transition-[max-height] duration-(--dur-move-base) ease-in-out motion-reduce:transition-none",
           expanded ? "max-h-104" : "max-h-48",
         )}
       >

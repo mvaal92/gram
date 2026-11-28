@@ -126,6 +126,9 @@ export function areaFor(box: Box, areas: readonly Box[]): Box | undefined {
 const dispatchMove = (address: string, box: Box): string =>
   `dispatch hl.dsp.window.move({ x = ${Math.round(box.x)}, y = ${Math.round(box.y)}, relative = false, window = "address:${address}" })`;
 
+const dispatchResize = (address: string, box: Box): string =>
+  `dispatch hl.dsp.window.resize({ x = ${Math.round(box.width)}, y = ${Math.round(box.height)}, relative = false, window = "address:${address}" })`;
+
 /** Where the pointer is, in layout coordinates. */
 export function readCursor(json: string): { readonly x: number; readonly y: number } | undefined {
   const value: unknown = JSON.parse(json);
@@ -202,6 +205,30 @@ export function hyprlandPlacer(socket: string, pid: number, title: string) {
         await sleep(30);
       }
       await resendPointer(socket, box);
+    },
+    /**
+     * Gives the window `box`'s size and place from the compositor's side. Hyprland keeps a window's
+     * top-left corner when it resizes it, so a change of height alone moves nothing; a move follows
+     * only when the place differs too. `false` when the window is gone.
+     */
+    async resizeTo(box: Box): Promise<boolean> {
+      const found = await client();
+      if (found === undefined) return false;
+      if (found.size[0] !== box.width || found.size[1] !== box.height) {
+        await hyprlandRequest(socket, dispatchResize(found.address, box));
+        for (let waited = 0; waited < 600; waited += 15) {
+          const now = await client();
+          if (now === undefined) return false;
+          if (now.size[0] === box.width && now.size[1] === box.height) break;
+          await sleep(15);
+        }
+      }
+      const now = await client();
+      if (now === undefined) return false;
+      if (now.at[0] !== box.x || now.at[1] !== box.y)
+        await hyprlandRequest(socket, dispatchMove(now.address, box));
+      await resendPointer(socket, box);
+      return true;
     },
     /** Where the pointer is now, in layout coordinates. */
     async cursor(): Promise<{ readonly x: number; readonly y: number } | undefined> {
