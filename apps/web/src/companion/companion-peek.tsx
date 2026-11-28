@@ -1,16 +1,14 @@
 import type { PlanItem, ThreadId, ThreadSummary } from "@gram/contracts";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import { answersInFull } from "@/inbox/inbox-detail";
 import { useDebounced } from "@/lib/timers";
 import { cn } from "@/lib/utils";
 import type { NeedsYouItem } from "@/orchestration/needs-you-items";
-import { useNeedsYouActions } from "@/orchestration/needs-you-row";
 import { StatusDot } from "@/orchestration/status-dot";
 import { useThreadFeed } from "@/stores/feeds";
 import { useThreadsStore } from "@/stores/threads";
 
+import { InboxCard } from "./companion-inbox";
 import {
   activeTool,
   hostLabel,
@@ -139,8 +137,8 @@ function PeekView({ needs, hosts, tasks, plan, todos, busy, own, onOpen }: PeekP
           data-testid="companion-peek"
           className="companion-peek absolute inset-x-2 top-7.5 z-10 flex max-h-[calc(100%-2.5rem)] flex-col gap-2 overflow-y-auto overscroll-contain rounded-xl p-2.5"
         >
-          {needs.slice(0, 2).map((item) => (
-            <NeedsCard key={item.key} item={item} onOpen={onOpen} />
+          {needs.map((item) => (
+            <InboxCard key={item.key} item={item} onOpen={onOpen} />
           ))}
           <PlanList plan={plan} todos={todos} />
           <Tasks tasks={tasks} onOpen={onOpen} />
@@ -283,58 +281,6 @@ function PlanList({
         </li>
       ))}
     </ol>
-  );
-}
-
-function NeedsCard({
-  item,
-  onOpen,
-}: {
-  item: NeedsYouItem;
-  onOpen: (threadId?: ThreadId) => void;
-}) {
-  const actions = useNeedsYouActions();
-  const options =
-    item.ask !== undefined && !answersInFull(item.ask)
-      ? item.ask.options
-          .filter((o) => o.action.kind !== "open" && o.action.kind !== "board")
-          .slice(0, 2)
-      : [];
-  return (
-    <div
-      role="group"
-      aria-label={item.title}
-      data-testid="companion-needs"
-      className="companion-inset flex flex-col gap-1.5 rounded-xl px-2.5 py-2 text-meta"
-    >
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <StatusDot state="needs" />
-          <strong className="truncate font-semibold">{item.title}</strong>
-        </span>
-        <span className="shrink-0 truncate text-subtle">{item.where}</span>
-      </div>
-      {item.command !== undefined && (
-        <code className="font-mono text-meta break-all">{item.command}</code>
-      )}
-      <div className="flex items-center gap-1.5">
-        {options.map((option, index) => (
-          <Button
-            key={option.label}
-            size="xs"
-            variant={index === 0 ? "default" : "outline"}
-            onClick={() => actions.answer(item, option)}
-          >
-            {option.label}
-          </Button>
-        ))}
-        {item.threadId !== undefined && (
-          <Button size="xs" variant="link" onClick={() => onOpen(item.threadId)}>
-            Open thread
-          </Button>
-        )}
-      </div>
-    </div>
   );
 }
 

@@ -242,3 +242,10 @@
     transition: none;
   }
 }
+
+/* How many things wait on the person: a neutral chip on the icon's edge with the count in amber,
+   never an amber fill (DESIGN.md: a needs-you count is a neutral outline). */
+.companion-count {
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+}

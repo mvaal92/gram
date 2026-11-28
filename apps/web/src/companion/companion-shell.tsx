@@ -7,7 +7,6 @@ import { useApi } from "@/api/context";
 import { useLayoutSync, useMountEffect, useSubscription } from "@/lib/effects";
 import { Markdown } from "@/components/ai-elements/markdown";
 import { cn } from "@/lib/utils";
-import { MockCard } from "@/thread/mock-visuals";
 import { Button } from "@/components/ui/button";
 import { AttachmentChips } from "@/composer/attachment-chips";
 import { useAttachments } from "@/composer/use-attachments";
@@ -19,6 +18,8 @@ import { useThreadsStore } from "@/stores/threads";
 import { useViewWorkspace } from "@/views/view-workspace";
 
 import { CompanionPresence } from "./companion-avatar";
+import { SharedCard, sharedIn } from "./companion-cards";
+import { Sheet } from "./companion-sheet";
 import { Peek } from "./companion-peek";
 import {
   avatarState,
@@ -69,7 +70,14 @@ export function CompanionShell({ windowed = false }: { windowed?: boolean }) {
         ? routeThread
         : latestThread(summaries)
       : undefined);
-  const needs = useNeedsYouList().items;
+  const allNeeds = useNeedsYouList().items;
+  const needs = useMemo(
+    () =>
+      workspace === undefined
+        ? allNeeds
+        : allNeeds.filter((item) => item.workspaceId === workspace.workspace.id),
+    [allNeeds, workspace],
+  );
   const target = threadId === undefined ? undefined : all[threadId];
   const watched = useMemo(
     () =>
@@ -174,6 +182,7 @@ function Bubble({
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const sheet = useCompanion((s) => s.sheet);
   const openFull = (threadId?: ThreadId) => {
     if (isCompanionWindow()) {
       leaveCompanion(threadId);
@@ -190,6 +199,8 @@ function Bubble({
       .catch((error: unknown) => console.error("companion: start orchestrator", error))
       .finally(() => setStarting(false));
   };
+  if (sheet !== undefined)
+    return <Sheet sheet={sheet} talkTo={target?.thread.id} onOpen={openFull} />;
   return (
     <section
       data-testid="companion-bubble"
@@ -210,7 +221,12 @@ function Bubble({
       />
       <div className="flex min-h-0 flex-col gap-2 overflow-y-auto">
         {target !== undefined ? (
-          <Exchange summary={target} expanded={expanded} onExpand={() => setExpanded(true)} />
+          <Exchange
+            summary={target}
+            expanded={expanded}
+            onExpand={() => setExpanded(true)}
+            onOpen={openFull}
+          />
         ) : workspace !== undefined ? (
           <div className="flex flex-col items-start gap-2 text-body text-muted-foreground">
             <span>No orchestrator runs in {workspace.workspace.name} yet.</span>
@@ -233,10 +249,12 @@ function Exchange({
   summary,
   expanded,
   onExpand,
+  onOpen,
 }: {
   summary: ThreadSummary;
   expanded: boolean;
   onExpand: () => void;
+  onOpen: (threadId?: ThreadId) => void;
 }) {
   const threadId = summary.thread.id;
   const messages = useThreadFeed(threadId, (s) => s.messages);
@@ -296,11 +314,9 @@ function Exchange({
               data-testid={message === lastReply ? "companion-reply" : undefined}
             >
               {textOf(message) !== "" && <Markdown mode="static">{textOf(message)}</Markdown>}
-              {message.parts.map((part, index) =>
-                part.type === "data-mock" ? (
-                  <MockCard key={index} threadId={threadId} mock={part.data} />
-                ) : null,
-              )}
+              {sharedIn(message).map((shared, index) => (
+                <SharedCard key={index} threadId={threadId} shared={shared} onOpen={onOpen} />
+              ))}
             </div>
           ),
         )}

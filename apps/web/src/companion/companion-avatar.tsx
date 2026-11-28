@@ -417,6 +417,15 @@ function Presence({
       }}
     >
       {windowed && <span aria-hidden className="companion-grip" />}
+      {needs.length > 0 && (
+        <span
+          aria-hidden
+          data-testid="companion-count"
+          className="companion-count pointer-events-none absolute -bottom-1 -left-1 z-10 grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-caption leading-none font-semibold text-status-needs"
+        >
+          {needs.length > 9 ? "9+" : needs.length}
+        </span>
+      )}
       <Avatar
         state={state}
         asks={asks}

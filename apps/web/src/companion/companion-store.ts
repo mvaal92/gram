@@ -1,7 +1,25 @@
+import type { DocId, MockCardData, QuestionChoice, ThreadId, WorkspaceId } from "@gram/contracts";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { DEFAULT_DOCK, readDock, type Dock } from "./companion-position";
+
+/** What the companion's sheet holds: a doc to read, a mock to look at and pick from, or a question's pictures. */
+export type CompanionSheet =
+  | {
+      readonly kind: "doc";
+      readonly workspaceId: WorkspaceId;
+      readonly id: DocId;
+      readonly title: string;
+    }
+  | { readonly kind: "mock"; readonly threadId: ThreadId; readonly mock: MockCardData }
+  | {
+      readonly kind: "choices";
+      readonly threadId: ThreadId;
+      readonly title: string;
+      readonly askKey: string;
+      readonly options: readonly QuestionChoice[];
+    };
 
 export interface CompanionState {
   /** The whole window is the companion: one icon and its dropdown, nothing else of Gram's. */
@@ -18,6 +36,9 @@ export interface CompanionState {
   readonly pings: boolean;
   /** The setup dialog is open in full Gram. */
   readonly setupOpen: boolean;
+  /** The sheet grown out of the companion's corner, over its dropdown. */
+  readonly sheet: CompanionSheet | undefined;
+  showSheet(sheet: CompanionSheet | undefined): void;
   set(on: boolean): void;
   toggle(): void;
   setOpen(open: boolean): void;
@@ -41,9 +62,11 @@ export const useCompanion = create<CompanionState>()(
       skin: "pebble",
       pings: true,
       setupOpen: false,
+      sheet: undefined,
+      showSheet: (sheet) => set(sheet === undefined ? { sheet } : { sheet, open: true }),
       set: (on) => set({ on, open: false }),
       toggle: () => set((s) => ({ on: !s.on, open: false })),
-      setOpen: (open) => set({ open }),
+      setOpen: (open) => set(open ? { open } : { open, sheet: undefined }),
       setDock: (dock) => set({ dock }),
       setSetupOpen: (setupOpen) => set({ setupOpen }),
       link: ({ workspaceId, skin, pings }) => set({ workspaceId, skin, pings }),
