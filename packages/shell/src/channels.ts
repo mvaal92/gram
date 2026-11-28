@@ -122,4 +122,6 @@ export const Channels = {
   companionMoveBy: "gram:companion-move-by",
   companionClosed: "gram:companion-closed",
   companionPlacement: "gram:companion-placement",
+  companionDragStart: "gram:companion-drag-start",
+  companionDragEnd: "gram:companion-drag-end",
 } as const;

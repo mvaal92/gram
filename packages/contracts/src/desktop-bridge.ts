@@ -516,6 +516,13 @@ export interface DesktopCompanion {
    * opens beside it grows toward the middle of the screen.
    */
   placement(): Promise<CompanionCorner>;
+  /**
+   * The companion window follows the pointer until `dragEnd`, moved by the shell from where the
+   * pointer is. `grip` is where in the window the press was, in the window's own pixels; the
+   * window hasn't moved since, so it pins the drag to the press exactly.
+   */
+  dragStart?(grip: { readonly x: number; readonly y: number }): void;
+  dragEnd?(): void;
   /** Called in the app's windows when the companion window closed, by `close` or otherwise. */
   onClosed(callback: () => void): () => void;
 }

@@ -203,5 +203,20 @@ export function hyprlandPlacer(socket: string, pid: number, title: string) {
       }
       await resendPointer(socket, box);
     },
+    /** Where the pointer is now, in layout coordinates. */
+    async cursor(): Promise<{ readonly x: number; readonly y: number } | undefined> {
+      return readCursor(await hyprlandRequest(socket, "j/cursorpos"));
+    },
+    /**
+     * A mover for the length of one drag: it finds the window once and then only sends moves,
+     * with no reads, size waits or pointer resends in between.
+     */
+    async dragMover(): Promise<((box: Box) => Promise<void>) | undefined> {
+      const found = await client();
+      if (found === undefined) return undefined;
+      return async (box) => {
+        await hyprlandRequest(socket, dispatchMove(found.address, box));
+      };
+    },
   };
 }
