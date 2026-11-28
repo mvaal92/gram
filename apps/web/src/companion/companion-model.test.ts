@@ -381,9 +381,9 @@ describe("answerIn", () => {
 describe("openTasks", () => {
   it("drops finished tasks, keeps blocked and failed ones until dismissed, and shows a new failure again", () => {
     const tasks = [endedAs("done"), endedAs("failed"), endedAs("doing")];
-    expect(openTasks(tasks, []).map((task) => task.phase)).toEqual(["failed", "doing"]);
-    expect(openTasks(tasks, ["failed:failed"]).map((task) => task.phase)).toEqual(["doing"]);
-    expect(openTasks(tasks, ["failed:done"]).map((task) => task.phase)).toEqual([
+    expect(openTasks(tasks, []).map((each) => each.phase)).toEqual(["failed", "doing"]);
+    expect(openTasks(tasks, ["failed:failed"]).map((each) => each.phase)).toEqual(["doing"]);
+    expect(openTasks(tasks, ["failed:done"]).map((each) => each.phase)).toEqual([
       "failed",
       "doing",
     ]);
