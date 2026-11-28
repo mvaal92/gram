@@ -290,9 +290,14 @@ function Presence({
     const dx = event.clientX - held.start.x;
     const dy = event.clientY - held.start.y;
     if (!held.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    const starting = !held.moved;
     held.moved = true;
     if (windowed) {
       const bridge = desktopCompanion();
+      if (bridge?.dragStart !== undefined) {
+        if (starting) bridge.dragStart({ x: held.start.x, y: held.start.y });
+        return;
+      }
       if (bridge === undefined || moving.current) return;
       moving.current = true;
       void bridge
@@ -321,6 +326,7 @@ function Presence({
     if (held?.moved !== true) return;
     dragged.current = true;
     if (windowed) {
+      desktopCompanion()?.dragEnd?.();
       findPlace();
       return;
     }

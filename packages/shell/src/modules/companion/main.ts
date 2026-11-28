@@ -17,7 +17,10 @@ import {
   within,
   type Box,
 } from "./geometry.ts";
+import { followPointer, type Point } from "./follow.ts";
 import { areaFor, hyprlandPlacer, hyprlandSocket } from "./hyprland.ts";
+
+const DRAG_LIMIT_MS = 30_000;
 
 export interface CompanionDeps {
   /** A frameless, transparent window at `bounds` loading the companion page; not yet shown. */
@@ -31,6 +34,8 @@ export interface CompanionDeps {
 
 interface Placer {
   mapped(): Promise<unknown>;
+  cursor(): Promise<Point | undefined>;
+  dragMover(): Promise<((box: Box) => Promise<void>) | undefined>;
   bounds(): Promise<Box | undefined>;
   areas(): Promise<readonly Box[]>;
   set(box: Box): Promise<void>;
@@ -38,6 +43,12 @@ interface Placer {
 
 const electronPlacer = (win: BrowserWindow): Placer => ({
   mapped: () => Promise.resolve(true),
+  cursor: () => Promise.resolve(screen.getCursorScreenPoint()),
+  dragMover: () =>
+    Promise.resolve((box: Box) => {
+      if (!win.isDestroyed()) win.setPosition(box.x, box.y);
+      return Promise.resolve();
+    }),
   bounds: () => Promise.resolve(win.isDestroyed() ? undefined : win.getBounds()),
   areas: () => Promise.resolve(screen.getAllDisplays().map((display) => display.workArea)),
   set: (box) => {
@@ -55,6 +66,8 @@ const compositorOrElectronPlacer = (win: BrowserWindow, title: string): Placer =
   const fallback = electronPlacer(win);
   return {
     mapped: () => hyprland.mapped(),
+    cursor: async () => (await hyprland.cursor()) ?? fallback.cursor(),
+    dragMover: async () => (await hyprland.dragMover()) ?? fallback.dragMover(),
     bounds: async () => {
       const at = await hyprland.bounds();
       if (at === undefined || win.isDestroyed()) return fallback.bounds();
@@ -123,6 +136,9 @@ export function installCompanion(ipc: ShellIpc, deps: CompanionDeps) {
   let queue: Promise<unknown> = Promise.resolve();
   let known: { box: Box; area: Box } | undefined;
   let quitting = false;
+  let drag:
+    | Promise<{ readonly stop: () => Promise<Box>; readonly area: Box } | undefined>
+    | undefined;
 
   const log = deps.log ?? (() => undefined);
   const live = () => win !== undefined && !win.isDestroyed();
@@ -205,6 +221,7 @@ export function installCompanion(ipc: ShellIpc, deps: CompanionDeps) {
       hideAppWindows();
     });
     created.once("closed", () => {
+      void endDrag();
       if (win === created) {
         win = undefined;
         placer = undefined;
@@ -247,6 +264,49 @@ export function installCompanion(ipc: ShellIpc, deps: CompanionDeps) {
       if (at === undefined) return;
       await put(fitBox(at.box, size, at.area), at.area);
     });
+  });
+  ipc.on(Channels.companionDragStart, (event, input) => {
+    const grip = readPoint(input);
+    if (grip === undefined || !own(event.sender) || drag !== undefined) return;
+    drag = serial(async () => {
+      const at = await where();
+      if (at === undefined || placer === undefined) return undefined;
+      const [mover, areas] = await Promise.all([placer.dragMover(), placer.areas()]);
+      if (mover === undefined) return undefined;
+      const follow = followPointer(
+        at.box,
+        { x: at.box.x + grip.x, y: at.box.y + grip.y },
+        {
+          cursor: () => placer?.cursor() ?? Promise.resolve(undefined),
+          move: mover,
+          clamp: (box) => within(box, areaFor(box, areas) ?? at.area),
+          every: (ms, tick) => {
+            const timer = setInterval(tick, ms);
+            const limit = setTimeout(() => void endDrag(), DRAG_LIMIT_MS);
+            return () => {
+              clearInterval(timer);
+              clearTimeout(limit);
+            };
+          },
+        },
+      );
+      return { stop: follow.stop, area: at.area };
+    });
+  });
+  const endDrag = async () => {
+    const started = drag;
+    if (started === undefined) return;
+    const follow = await started;
+    drag = undefined;
+    if (follow === undefined) return;
+    const landed = await follow.stop();
+    const area = known === undefined ? follow.area : known.area;
+    known = { box: landed, area };
+    corner = cornerIn(landed, area);
+    remember(true);
+  };
+  ipc.on(Channels.companionDragEnd, (event) => {
+    if (own(event.sender)) void endDrag();
   });
   ipc.handle(Channels.companionMoveBy, async (input, event) => {
     const step = readStep(input);
