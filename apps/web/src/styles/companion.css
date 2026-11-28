@@ -136,11 +136,13 @@
   box-shadow: none;
 }
 
+/* The opacity the person picks in Customize (`--companion-backdrop` on the root) outranks both
+   defaults below. */
 /* On the desktop the companion is glass whatever the app's Surfaces setting, which is about
    Gram's own backdrop. Nothing behind a transparent window can be blurred, so the tint is strong
    enough to read over a busy desktop; contrast, transparency and forced-colour fallbacks stay. */
 :root[data-companion-window] .companion-glass {
-  --companion-glass-alpha: 86%;
+  --companion-glass-alpha: 95%;
 }
 
 /* Liquid glass. */
@@ -148,7 +150,8 @@
   color: var(--fg);
   background: color-mix(
     in oklab,
-    var(--companion-glass-tint, var(--surface-3)) var(--companion-glass-alpha, 58%),
+    var(--companion-glass-tint, var(--surface-3))
+      var(--companion-backdrop, var(--companion-glass-alpha, 58%)),
     transparent
   );
   border: 1px solid color-mix(in oklab, var(--surface-3) 50%, transparent);
@@ -160,6 +163,7 @@
   backdrop-filter: blur(var(--companion-glass-blur, 22px)) saturate(1.8) brightness(1.04);
 }
 .companion-panel,
+.companion-customize,
 .companion-drop {
   position: relative;
   border-radius: var(--companion-glass-radius, 18px);
@@ -223,6 +227,7 @@
 }
 
 [data-motion="full"] .companion-drop,
+[data-motion="full"] .companion-customize,
 [data-motion="full"] .companion-panel {
   animation: companion-open var(--dur-fast) ease-out both;
 }

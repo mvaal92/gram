@@ -39,6 +39,7 @@ import {
   type Placement,
   type Point,
 } from "./companion-position";
+import { Customize } from "./companion-customize";
 import { faceOf, PEBBLE, skinStyle } from "./companion-skin";
 import { cornerStyle, findPlacement, placementAt, useWindowFit } from "./companion-window-fit";
 import { useCompanion } from "./companion-store";
@@ -205,6 +206,7 @@ function Presence({
   windowed: boolean;
 }) {
   const open = useCompanion((s) => s.open);
+  const customizing = useCompanion((s) => s.customizing);
   const setOpen = useCompanion((s) => s.setOpen);
   const dock = useCompanion((s) => s.dock);
   const setDock = useCompanion((s) => s.setDock);
@@ -226,7 +228,7 @@ function Presence({
   };
   const placement = windowed ? onScreen : placementOf(dock);
   const moving = useRef(false);
-  const resting = !open && drop.shown === undefined && (windowed || !hovered);
+  const resting = !open && !customizing && drop.shown === undefined && (windowed || !hovered);
   if (resting && placed) setPlaced(false);
   const findPlace = () => findPlacement(windowed, setOnScreen);
   useExternalSync(() => {
@@ -417,7 +419,7 @@ function Presence({
         fileOver={fileOver}
         files={files}
       />
-      {hovered && !open && dragging === undefined && !windowed && (
+      {hovered && !open && !customizing && dragging === undefined && !windowed && (
         <span
           role="tooltip"
           data-testid="companion-hint"
@@ -429,35 +431,39 @@ function Presence({
           {hint}
         </span>
       )}
-      {dragging === undefined && (open || drop.shown !== undefined) && (
+      {dragging === undefined && (open || customizing || drop.shown !== undefined) && (
         <div
           className={besideStyle(placement)}
           data-placement={`${placement.vertical}-${placement.horizontal}`}
         >
-          {open
-            ? panel
-            : drop.shown !== undefined && (
-                <button
-                  type="button"
-                  key={drop.shown.key}
-                  data-testid="companion-drop"
-                  data-tone={drop.shown.tone}
-                  onClick={() => {
-                    const shown = drop.shown;
-                    drop.dismiss();
-                    if (shown?.tone === "needs")
-                      useCompanion.getState().showSheet({ kind: "decide", start: shown.key });
-                    else setOpen(true);
-                  }}
-                  className={cn(
-                    "companion-glass companion-drop max-w-64 px-3 py-2 text-left text-body leading-snug text-foreground",
-                    placement.vertical === "below" ? "origin-top" : "origin-bottom",
-                  )}
-                >
-                  <DropHeading drop={drop.shown} />
-                  {drop.shown.text}
-                </button>
-              )}
+          {open ? (
+            panel
+          ) : customizing ? (
+            <Customize windowed={windowed} />
+          ) : (
+            drop.shown !== undefined && (
+              <button
+                type="button"
+                key={drop.shown.key}
+                data-testid="companion-drop"
+                data-tone={drop.shown.tone}
+                onClick={() => {
+                  const shown = drop.shown;
+                  drop.dismiss();
+                  if (shown?.tone === "needs")
+                    useCompanion.getState().showSheet({ kind: "decide", start: shown.key });
+                  else setOpen(true);
+                }}
+                className={cn(
+                  "companion-glass companion-drop max-w-64 px-3 py-2 text-left text-body leading-snug text-foreground",
+                  placement.vertical === "below" ? "origin-top" : "origin-bottom",
+                )}
+              >
+                <DropHeading drop={drop.shown} />
+                {drop.shown.text}
+              </button>
+            )
+          )}
         </div>
       )}
     </div>
@@ -606,7 +612,8 @@ function Avatar({
   onPointerUp: (event: PointerEvent<HTMLButtonElement>) => void;
   onLostCapture: () => void;
 }) {
-  const openMenu = useCompanion((s) => s.setOpen);
+  const customizing = useCompanion((s) => s.customizing);
+  const customize = useCompanion((s) => s.setCustomizing);
   return (
     <button
       type="button"
@@ -624,7 +631,7 @@ function Avatar({
       onDoubleClick={() => leaveCompanion()}
       onContextMenu={(event) => {
         event.preventDefault();
-        openMenu(true);
+        customize(!customizing);
       }}
       onPointerEnter={() => onHover(true)}
       onPointerLeave={() => onHover(false)}

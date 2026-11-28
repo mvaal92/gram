@@ -56,6 +56,9 @@ export const PEBBLE: CompanionSkin = {
   glass: { tint: "surface-3", alpha: 0.58, blur: 22, radius: 18 },
 };
 
+/** The glass's opacity in the desktop app's own window, over the desktop (companion.css). */
+export const WINDOW_GLASS_ALPHA = 0.95;
+
 const role = (token: TokenRole) => `var(--${token})`;
 
 /** The face for a state; asking outranks the mood, as the amber mark does everywhere. */

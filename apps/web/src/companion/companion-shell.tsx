@@ -21,6 +21,7 @@ import { useViewWorkspace } from "@/views/view-workspace";
 
 import { CompanionPresence } from "./companion-avatar";
 import { SharedCard, sharedIn } from "./companion-cards";
+import { backdropStyle } from "./companion-customize";
 import { Decide } from "./companion-decide";
 import { ResizeGrip, sizedStyle } from "./companion-resize";
 import { Sheet } from "./companion-sheet";
@@ -131,6 +132,14 @@ export function CompanionShell({ windowed = false }: { windowed?: boolean }) {
     target === undefined || (target.status !== "running" && target.status !== "starting");
 
   useSubscription(() => followStoredCompanion(), []);
+
+  const backdrop = backdropStyle(useCompanion((s) => s.backdrop));
+  useLayoutSync(() => {
+    if (backdrop === undefined) return undefined;
+    const root = document.documentElement;
+    root.style.setProperty("--companion-backdrop", backdrop);
+    return () => root.style.removeProperty("--companion-backdrop");
+  }, [backdrop]);
 
   useLayoutSync(() => {
     if (!windowed) return undefined;

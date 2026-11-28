@@ -327,3 +327,43 @@ test("the chat resizes from its free corner, keeps the size after a reload, and 
     .poll(async () => Math.round((await bubble.boundingBox())!.width))
     .toBe(Math.round(before.width));
 });
+
+test("a right-click on the icon opens Customize; the background opacity applies as it moves and is kept", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/t/t-flaky");
+  await expect(page.getByTestId("app-shell")).toBeVisible();
+  await page.keyboard.press("ControlOrMeta+Alt+6");
+
+  const avatar = page.getByTestId("companion-avatar");
+  await avatar.click({ button: "right" });
+  const customize = page.getByTestId("companion-customize");
+  await expect(customize).toBeVisible();
+  await expect(page.getByTestId("companion-bubble")).toHaveCount(0);
+
+  const backdrop = () =>
+    page.evaluate(() => document.documentElement.style.getPropertyValue("--companion-backdrop"));
+  await expect(customize.getByText("58%")).toBeVisible();
+  await page.getByTestId("companion-backdrop").fill("0.35");
+  await expect(customize.getByText("35%")).toBeVisible();
+  await expect.poll(backdrop).toBe("35%");
+
+  await page.reload();
+  await expect.poll(backdrop).toBe("35%");
+  await avatar.click({ button: "right" });
+  await expect(customize.getByText("35%")).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(customize).toHaveCount(0);
+  await avatar.click({ button: "right" });
+  await avatar.click();
+  await expect(customize).toHaveCount(0);
+  await expect(page.getByTestId("companion-bubble")).toBeVisible();
+
+  await avatar.click({ button: "right" });
+  await page.getByTestId("companion-reset-backdrop").click();
+  await expect(customize.getByText("58%")).toBeVisible();
+  await expect.poll(backdrop).toBe("");
+  await expect(page.getByTestId("companion-reset-backdrop")).toBeDisabled();
+});

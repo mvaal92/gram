@@ -31,6 +31,15 @@ export interface SurfaceSize {
 /** The surfaces that keep a size: the chat, and the sheet the decision view shares. */
 export type SizedSurface = "chat" | "sheet";
 
+/** The glass's opacity the person can pick, as a fraction: faint enough to see through, up to solid. */
+export const BACKDROP_RANGE = { min: 0.4, max: 1 } as const;
+
+/** A stored or dragged opacity, held to the range and to whole percents; anything else is no choice. */
+export const readBackdrop = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value)
+    ? Math.round(Math.min(Math.max(value, BACKDROP_RANGE.min), BACKDROP_RANGE.max) * 100) / 100
+    : undefined;
+
 const readSize = (value: unknown): SurfaceSize | undefined => {
   if (value === null || typeof value !== "object") return undefined;
   const { width, height } = value as { width?: unknown; height?: unknown };
@@ -58,6 +67,14 @@ export interface CompanionState {
   readonly sheet: CompanionSheet | undefined;
   /** Sizes set by dragging a surface's free corner; absent fits the content. */
   readonly sizes: Partial<Record<SizedSurface, SurfaceSize>>;
+  /** The glass's opacity the person picked; absent keeps the skin's. */
+  readonly backdrop: number | undefined;
+  /** The small Customize popover is open beside the icon, in place of the dropdown. */
+  readonly customizing: boolean;
+  setBackdrop(backdrop: number | undefined): void;
+  setCustomizing(customizing: boolean): void;
+  /** Every sized surface goes back to fitting its content. */
+  resetSizes(): void;
   /** Blocked or failed tasks the person put away, by their ending, so a new failure shows again. */
   readonly dismissed: readonly string[];
   dismiss(key: string): void;
@@ -88,7 +105,13 @@ export const useCompanion = create<CompanionState>()(
       setupOpen: false,
       sheet: undefined,
       sizes: {},
+      backdrop: undefined,
+      customizing: false,
       dismissed: [],
+      setBackdrop: (backdrop) => set({ backdrop: readBackdrop(backdrop) }),
+      setCustomizing: (customizing) =>
+        set(customizing ? { customizing, open: false, sheet: undefined } : { customizing }),
+      resetSizes: () => set({ sizes: {} }),
       dismiss: (key) =>
         set((s) => ({
           dismissed: [...s.dismissed.filter((each) => each !== key), key].slice(-100),
@@ -98,10 +121,11 @@ export const useCompanion = create<CompanionState>()(
           const { [surface]: _gone, ...rest } = s.sizes;
           return { sizes: size === undefined ? rest : { ...rest, [surface]: size } };
         }),
-      showSheet: (sheet) => set(sheet === undefined ? { sheet } : { sheet, open: true }),
-      set: (on) => set({ on, open: false }),
-      toggle: () => set((s) => ({ on: !s.on, open: false })),
-      setOpen: (open) => set(open ? { open } : { open, sheet: undefined }),
+      showSheet: (sheet) =>
+        set(sheet === undefined ? { sheet } : { sheet, open: true, customizing: false }),
+      set: (on) => set({ on, open: false, customizing: false }),
+      toggle: () => set((s) => ({ on: !s.on, open: false, customizing: false })),
+      setOpen: (open) => set(open ? { open, customizing: false } : { open, sheet: undefined }),
       setDock: (dock) => set({ dock }),
       setSetupOpen: (setupOpen) => set({ setupOpen }),
       link: ({ workspaceId, skin, pings }) => set({ workspaceId, skin, pings }),
@@ -110,7 +134,8 @@ export const useCompanion = create<CompanionState>()(
       name: "gram.companion",
       version: 1,
       storage: createJSONStorage(() => globalThis.localStorage),
-      partialize: ({ on, dock, workspaceId, skin, pings, sizes, dismissed }) => ({
+      partialize: ({ on, dock, workspaceId, skin, pings, sizes, dismissed, backdrop }) => ({
+        backdrop,
         dismissed,
         on,
         dock,
@@ -120,7 +145,9 @@ export const useCompanion = create<CompanionState>()(
         sizes,
       }),
       merge: (stored, current) => {
-        const { on, dock, workspaceId, skin, pings, sizes, dismissed } = (stored ?? {}) as {
+        const { on, dock, workspaceId, skin, pings, sizes, dismissed, backdrop } = (stored ??
+          {}) as {
+          backdrop?: unknown;
           dismissed?: unknown;
           on?: unknown;
           dock?: unknown;
@@ -138,6 +165,7 @@ export const useCompanion = create<CompanionState>()(
           ...(typeof workspaceId === "string" ? { workspaceId } : {}),
           skin: typeof skin === "string" ? skin : current.skin,
           pings: pings !== false,
+          backdrop: readBackdrop(backdrop),
           dismissed: Array.isArray(dismissed)
             ? dismissed.filter((each): each is string => typeof each === "string")
             : [],
