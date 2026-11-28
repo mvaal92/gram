@@ -20,6 +20,7 @@ import {
   activeTool,
   endingsOf,
   lastExchange,
+  tasksLine,
   noticeDrops,
   type ActiveTool,
   type CompanionTask,
@@ -372,7 +373,10 @@ function Presence({
 
   const hint = fileOver
     ? "Drop to attach"
-    : (tool?.label ?? (state === "error" ? "Something failed" : "Gram · nothing running"));
+    : (tool?.label ??
+      (state === "error"
+        ? "Something failed"
+        : (tasksLine(tasks ?? []) ?? "Gram · nothing running")));
   const files = {
     onDragEnter: (event: DragEvent<HTMLButtonElement>) => {
       if (onFiles === undefined || !event.dataTransfer.types.includes("Files")) return;

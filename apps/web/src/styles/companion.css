@@ -237,9 +237,6 @@
     inset 0 1px 0 color-mix(in oklab, var(--surface-3) 85%, var(--fg) 15%),
     0 8px 24px color-mix(in oklab, black 35%, transparent);
 }
-.companion-panel:has(.companion-peek) {
-  min-height: 22rem;
-}
 @media (prefers-reduced-motion: reduce) {
   .companion-topline > * {
     transition: none;

@@ -1,4 +1,4 @@
-import type { PlanItem, ThreadId, ThreadSummary, UserInput, WorkspaceState } from "@gram/contracts";
+import type { ThreadId, ThreadSummary, UserInput, WorkspaceState } from "@gram/contracts";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { ArrowUp, Plus } from "lucide-react";
 import { useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
@@ -11,10 +11,7 @@ import { MockCard } from "@/thread/mock-visuals";
 import { Button } from "@/components/ui/button";
 import { AttachmentChips } from "@/composer/attachment-chips";
 import { useAttachments } from "@/composer/use-attachments";
-import { answersInFull } from "@/inbox/inbox-detail";
 import type { NeedsYouItem } from "@/orchestration/needs-you-items";
-import { useNeedsYouActions } from "@/orchestration/needs-you-row";
-import { StatusDot } from "@/orchestration/status-dot";
 import { useNeedsYouList } from "@/orchestration/use-needs-you";
 import { useOrchestratorLedger, useWorkspaces } from "@/orchestration/use-orchestration";
 import { useThreadFeed } from "@/stores/feeds";
@@ -22,10 +19,9 @@ import { useThreadsStore } from "@/stores/threads";
 import { useViewWorkspace } from "@/views/view-workspace";
 
 import { CompanionPresence } from "./companion-avatar";
+import { Peek } from "./companion-peek";
 import {
-  activeTool,
   avatarState,
-  hostLabel,
   hostThreads,
   historyOf,
   textOf,
@@ -35,10 +31,8 @@ import {
   planHint,
   plansOf,
   shownPlan,
-  tasksLine,
   tasksOf,
   threadPlanOf,
-  topLineOf,
   workersLine,
   type ActiveTool,
   type CompanionPlan,
@@ -179,6 +173,7 @@ function Bubble({
   const api = useApi();
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const openFull = (threadId?: ThreadId) => {
     if (isCompanionWindow()) {
       leaveCompanion(threadId);
@@ -199,6 +194,9 @@ function Bubble({
     <section
       data-testid="companion-bubble"
       aria-label="Gram companion"
+      onPointerLeave={(event) => {
+        if (event.pointerType === "mouse") setExpanded(false);
+      }}
       className="companion-glass companion-panel relative flex max-h-[min(36rem,calc(100dvh-6rem))] w-85 max-w-full flex-col gap-2 p-3 pt-1.5"
     >
       <Peek
@@ -212,7 +210,7 @@ function Bubble({
       />
       <div className="flex min-h-0 flex-col gap-2 overflow-y-auto">
         {target !== undefined ? (
-          <Exchange summary={target} />
+          <Exchange summary={target} expanded={expanded} onExpand={() => setExpanded(true)} />
         ) : workspace !== undefined ? (
           <div className="flex flex-col items-start gap-2 text-body text-muted-foreground">
             <span>No orchestrator runs in {workspace.workspace.name} yet.</span>
@@ -231,238 +229,19 @@ function Bubble({
   );
 }
 
-const TOP_DOT = { needs: "needs", working: "working", stuck: "error", quiet: "idle" } as const;
-
-function Peek(props: Omit<PeekProps, "own" | "todos"> & { threadId: ThreadId | undefined }) {
-  const { threadId, ...rest } = props;
-  return threadId === undefined ? (
-    <PeekView {...rest} own={undefined} todos={undefined} />
-  ) : (
-    <ThreadPeek threadId={threadId} {...rest} />
-  );
-}
-
-function ThreadPeek({
-  threadId,
-  ...rest
-}: Omit<PeekProps, "own" | "todos"> & { threadId: ThreadId }) {
-  const messages = useThreadFeed(threadId, (s) => s.messages);
-  const todos = useThreadsStore((s) => s.plans[threadId]);
-  return <PeekView {...rest} own={activeTool(messages)} todos={todos} />;
-}
-
-interface PeekProps {
-  needs: readonly NeedsYouItem[];
-  hosts: readonly ThreadSummary[];
-  tasks: readonly CompanionTask[];
-  plan: CompanionPlan | undefined;
-  todos: readonly PlanItem[] | undefined;
-  busy: ActiveTool | undefined;
-  own: ActiveTool | undefined;
-  onOpen: (threadId?: ThreadId) => void;
-}
-
-function PeekView({ needs, hosts, tasks, plan, todos, busy, own, onOpen }: PeekProps) {
-  const line = topLineOf({ needs, step: own ?? busy, plan, tasks });
-  const [open, setOpen] = useState(false);
-  const [pinned, setPinned] = useState(false);
-  const shown = open || pinned;
-  const hasMore =
-    needs.length > 0 ||
-    hosts.length > 0 ||
-    tasks.length > 0 ||
-    plan !== undefined ||
-    (todos?.length ?? 0) > 0;
-  return (
-    <div
-      className="contents"
-      onPointerEnter={() => setOpen(true)}
-      onPointerLeave={() => setOpen(false)}
-    >
-      <button
-        type="button"
-        data-testid="companion-topline"
-        data-tone={line?.tone}
-        data-rest={line?.tone === "needs" || undefined}
-        aria-expanded={shown}
-        aria-label={line === undefined ? "Nothing running" : line.text}
-        disabled={line === undefined && !hasMore}
-        onWheel={() => setOpen(true)}
-        onClick={() => setPinned(!pinned)}
-        className="companion-topline flex h-6 min-w-0 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-left text-meta text-muted-foreground outline-none focus-visible:focus-ring"
-      >
-        {line !== undefined && (
-          <>
-            <StatusDot state={TOP_DOT[line.tone]} still={line.tone !== "working"} />
-            <span
-              className={cn(
-                "min-w-0 flex-1 truncate",
-                line.tone === "needs" && "text-status-needs",
-              )}
-            >
-              {line.text}
-            </span>
-          </>
-        )}
-      </button>
-      {shown && hasMore && (
-        <div
-          data-testid="companion-peek"
-          className="companion-peek absolute inset-x-2 top-8 z-10 flex max-h-[calc(100%-2.5rem)] flex-col gap-2 overflow-y-auto overscroll-contain rounded-xl p-2.5"
-        >
-          {needs.slice(0, 2).map((item) => (
-            <NeedsCard key={item.key} item={item} onOpen={onOpen} />
-          ))}
-          <PlanList plan={plan} todos={todos} />
-          <Tasks tasks={tasks} onOpen={onOpen} />
-          {hosts.map((summary) => (
-            <HostCard key={summary.thread.id} summary={summary} onOpen={onOpen} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const PLAN_MARK = { completed: "✓", inProgress: "•", pending: "○", cancelled: "–" } as const;
-const STEP_MARK = { done: "✓", doing: "•", todo: "○" } as const;
-const TASKS_SHOWN = 4;
-const DONE_SHOWN = 2;
-
-function Tasks({
-  tasks,
-  onOpen,
+function Exchange({
+  summary,
+  expanded,
+  onExpand,
 }: {
-  tasks: readonly CompanionTask[];
-  onOpen: (threadId?: ThreadId) => void;
+  summary: ThreadSummary;
+  expanded: boolean;
+  onExpand: () => void;
 }) {
-  if (tasks.length === 0) return null;
-  const live = tasks.filter((task) => task.phase !== "done");
-  const done = tasks.filter((task) => task.phase === "done").slice(0, DONE_SHOWN);
-  const shown = [...live, ...done].slice(0, TASKS_SHOWN);
-  return (
-    <section data-testid="companion-tasks" aria-label="Tasks" className="flex flex-col gap-0.5">
-      <h2 className="flex justify-between text-meta text-subtle">
-        <span>Tasks</span>
-        {shown.length < tasks.length && <span>{tasksLine(tasks)}</span>}
-      </h2>
-      {shown.map((task) => (
-        <button
-          key={task.id}
-          type="button"
-          data-testid="companion-task"
-          data-phase={task.phase}
-          title={task.line === undefined ? task.title : `${task.title}\n${task.line}`}
-          onClick={() => onOpen(task.id)}
-          className="flex min-w-0 items-center gap-1.5 rounded-md py-0.5 text-left text-meta hover:bg-surface-2"
-        >
-          <StatusDot state={TASK_DOT[task.phase]} still={task.phase !== "doing"} />
-          <span
-            className={cn(
-              "min-w-0 flex-1 truncate",
-              task.phase === "done" && "text-muted-foreground",
-            )}
-          >
-            {task.title}
-          </span>
-          <span
-            className={cn(
-              "max-w-28 shrink-0 truncate",
-              task.phase === "needs"
-                ? "text-status-needs"
-                : task.phase === "failed"
-                  ? "text-destructive"
-                  : "text-subtle",
-            )}
-          >
-            {TASK_EDGE[task.phase](task)}
-          </span>
-        </button>
-      ))}
-    </section>
-  );
-}
-
-const TASK_DOT = { doing: "working", needs: "needs", done: "done", failed: "error" } as const;
-
-const TASK_EDGE: Record<CompanionTask["phase"], (task: CompanionTask) => string> = {
-  doing: (task) => task.progress ?? "running",
-  needs: () => "asks you",
-  done: () => "done",
-  failed: (task) => (task.blocked === true ? "blocked" : "failed"),
-};
-
-function PlanList({
-  plan,
-  todos,
-}: {
-  plan: CompanionPlan | undefined;
-  todos: readonly PlanItem[] | undefined;
-}) {
-  if (plan !== undefined) {
-    return (
-      <section
-        data-testid="companion-plan"
-        aria-label="Plan"
-        className="flex flex-col gap-0.5 text-meta"
-      >
-        <h2 className="flex min-w-0 justify-between gap-2 text-subtle">
-          <span className="truncate">{plan.title}</span>
-          {plan.total > 0 ? (
-            <span className="shrink-0 font-mono">
-              {plan.done} of {plan.total}
-            </span>
-          ) : (
-            plan.current !== undefined && <span className="truncate">{plan.current}</span>
-          )}
-        </h2>
-        <ol className="flex flex-col gap-0.5">
-          {plan.steps.map((step, index) => (
-            <li
-              key={index}
-              className={cn(
-                "flex min-w-0 gap-1.5",
-                step.status === "done" ? "text-subtle" : "text-muted-foreground",
-                step.status === "doing" && "text-foreground",
-              )}
-            >
-              <span aria-hidden>{STEP_MARK[step.status]}</span>
-              <span className="truncate">{step.text}</span>
-            </li>
-          ))}
-        </ol>
-      </section>
-    );
-  }
-  if (todos === undefined || todos.length === 0) return null;
-  return (
-    <ol data-testid="companion-plan" className="flex flex-col gap-0.5 text-meta">
-      {todos.map((item, index) => (
-        <li
-          key={index}
-          className={cn(
-            "flex min-w-0 gap-1.5",
-            item.status === "completed" || item.status === "cancelled"
-              ? "text-subtle"
-              : "text-muted-foreground",
-          )}
-        >
-          <span aria-hidden>{PLAN_MARK[item.status]}</span>
-          <span className="truncate">
-            {item.status === "inProgress" ? (item.activeForm ?? item.content) : item.content}
-          </span>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function Exchange({ summary }: { summary: ThreadSummary }) {
   const threadId = summary.thread.id;
   const messages = useThreadFeed(threadId, (s) => s.messages);
   const history = historyOf(messages);
   const lastReply = history.findLast((message) => message.role === "assistant");
-  const [expanded, setExpanded] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   useSubscription(() => {
@@ -496,7 +275,7 @@ function Exchange({ summary }: { summary: ThreadSummary }) {
         ref={scroller}
         data-testid="companion-history"
         data-expanded={expanded || undefined}
-        onWheel={() => setExpanded(true)}
+        onWheel={onExpand}
         className={cn(
           "flex flex-col gap-2 overflow-y-auto overscroll-contain text-body leading-relaxed",
           expanded ? "max-h-104" : "max-h-48",
@@ -627,83 +406,5 @@ function Say({ summary }: { summary: ThreadSummary }) {
         </Button>
       </div>
     </form>
-  );
-}
-
-function NeedsCard({
-  item,
-  onOpen,
-}: {
-  item: NeedsYouItem;
-  onOpen: (threadId?: ThreadId) => void;
-}) {
-  const actions = useNeedsYouActions();
-  const options =
-    item.ask !== undefined && !answersInFull(item.ask)
-      ? item.ask.options
-          .filter((o) => o.action.kind !== "open" && o.action.kind !== "board")
-          .slice(0, 2)
-      : [];
-  return (
-    <div
-      role="group"
-      aria-label={item.title}
-      data-testid="companion-needs"
-      className="companion-inset flex flex-col gap-1.5 rounded-xl px-2.5 py-2 text-meta"
-    >
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <StatusDot state="needs" />
-          <strong className="truncate font-semibold">{item.title}</strong>
-        </span>
-        <span className="shrink-0 truncate text-subtle">{item.where}</span>
-      </div>
-      {item.command !== undefined && (
-        <code className="font-mono text-meta break-all">{item.command}</code>
-      )}
-      <div className="flex items-center gap-1.5">
-        {options.map((option, index) => (
-          <Button
-            key={option.label}
-            size="xs"
-            variant={index === 0 ? "default" : "outline"}
-            onClick={() => actions.answer(item, option)}
-          >
-            {option.label}
-          </Button>
-        ))}
-        {item.threadId !== undefined && (
-          <Button size="xs" variant="link" onClick={() => onOpen(item.threadId)}>
-            Open thread
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function HostCard({
-  summary,
-  onOpen,
-}: {
-  summary: ThreadSummary;
-  onOpen: (threadId?: ThreadId) => void;
-}) {
-  const live = summary.status === "running" || summary.status === "starting";
-  return (
-    <button
-      type="button"
-      data-testid="companion-host"
-      onClick={() => onOpen(summary.thread.id)}
-      className="companion-inset flex flex-col gap-1 rounded-xl px-2.5 py-2 text-left text-meta hover:bg-surface-2"
-    >
-      <span className="flex min-w-0 items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <StatusDot state={live ? "working" : summary.status === "error" ? "error" : "idle"} />
-          <strong className="truncate font-semibold">{summary.thread.title}</strong>
-        </span>
-        <span className="shrink-0 text-subtle">{hostLabel(summary)}</span>
-      </span>
-    </button>
   );
 }
