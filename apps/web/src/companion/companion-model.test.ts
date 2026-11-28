@@ -16,6 +16,7 @@ import {
   shownPlan,
   tasksLine,
   tasksOf,
+  topLineOf,
   workersLine,
 } from "./companion-model";
 
@@ -311,5 +312,33 @@ describe("historyOf", () => {
     ];
     expect(historyOf(messages).map((m) => m.parts[0]?.type)).toEqual(["text", "data-mock", "text"]);
     expect(historyOf(messages, 1)).toHaveLength(1);
+  });
+});
+
+const endedAs = (phase: string) => ({ id: phase, title: phase, phase, at: 1 }) as never;
+
+describe("topLineOf", () => {
+  it("says what asks first, then the step, then the plan, then how tasks ended", () => {
+    const working = { kind: "worker" as const, label: "1 worker · working" };
+    const plan = { title: "p", steps: [], done: 1, total: 3, current: "two" };
+    expect(
+      topLineOf({ needs: [{ title: "Pick a name" }], step: working, plan, tasks: [] }),
+    ).toEqual({
+      tone: "needs",
+      text: "Asks you · Pick a name",
+    });
+    expect(topLineOf({ needs: [], step: working, plan, tasks: [] })?.text).toBe(
+      "1 worker · working",
+    );
+    expect(topLineOf({ needs: [], step: undefined, plan, tasks: [] })?.text).toBe(
+      "Step 2 of 3 · two",
+    );
+    expect(
+      topLineOf({ needs: [], step: undefined, plan: undefined, tasks: [endedAs("failed")] }),
+    ).toEqual({
+      tone: "stuck",
+      text: "1 failed",
+    });
+    expect(topLineOf({ needs: [], step: undefined, plan: undefined, tasks: [] })).toBeUndefined();
   });
 });
