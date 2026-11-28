@@ -30,11 +30,14 @@ import {
   latestThread,
   needsPerson,
   ownLine,
-  planLine,
+  planHint,
+  plansOf,
   tasksLine,
   tasksOf,
+  threadPlanOf,
   workersLine,
   type ActiveTool,
+  type CompanionPlan,
   type CompanionTask,
 } from "./companion-model";
 import { followStoredCompanion, useCompanion } from "./companion-store";
@@ -53,7 +56,7 @@ function useCompanionWorkspace(): WorkspaceState | undefined {
 /**
  * Companion mode: the whole window is a round avatar in its corner, and a small bubble with one
  * input and the latest reply. It talks to the workspace's orchestrator, which runs its workers as
- * ever; asks, approvals and threads a host such as Runheim started show as compact cards.
+ * ever; asks, approvals and threads an embedding host started show as compact cards.
  */
 export function CompanionShell({ windowed = false }: { windowed?: boolean }) {
   const workspace = useCompanionWorkspace();
@@ -85,14 +88,29 @@ export function CompanionShell({ windowed = false }: { windowed?: boolean }) {
   const asksHere = needs.some((item) => item.threadId !== undefined && item.threadId === threadId);
   const ledger = useOrchestratorLedger(workspace?.workspace.id).data;
   const tasks = useMemo(() => tasksOf(ledger), [ledger]);
-  const plan = planLine(target?.plan);
+  const ledgerIn = workspace === undefined || ledger !== undefined;
+  const plans = useMemo(() => plansOf(ledger), [ledger]);
+  const plan = plans[0] ?? threadPlanOf(target?.plan);
+  const where = planHint(plan);
+  const workers = workersLine(
+    workspace === undefined
+      ? watched
+      : watched.filter((s) => s.thread.workspaceId === workspace.workspace.id),
+    threadId,
+  );
   const busy =
     (asksHere ? ownLine(target, true) : undefined) ??
-    workersLine(watched, threadId) ??
-    ownLine(target) ??
-    (plan?.current === undefined
+    (workers === undefined
       ? undefined
-      : { kind: "other" as const, label: `Plan ${plan.done}/${plan.total} · ${plan.current}` });
+      : {
+          ...workers,
+          label:
+            where === undefined
+              ? workers.label
+              : `${where} · ${workers.label.replace(/ · working$/u, "")}`,
+        }) ??
+    ownLine(target) ??
+    (where === undefined ? undefined : { kind: "other" as const, label: where });
   const settled =
     target === undefined || (target.status !== "running" && target.status !== "starting");
 
@@ -118,7 +136,7 @@ export function CompanionShell({ windowed = false }: { windowed?: boolean }) {
         asks={asks}
         busy={busy}
         needs={needs}
-        tasks={tasks}
+        tasks={ledgerIn ? tasks : undefined}
         settled={settled}
         windowed={windowed}
         panel={
@@ -128,6 +146,7 @@ export function CompanionShell({ windowed = false }: { windowed?: boolean }) {
             needs={needs}
             hosts={hostThreads(summaries)}
             tasks={tasks}
+            plan={plan}
             busy={busy}
           />
         }
@@ -142,6 +161,7 @@ function Bubble({
   needs,
   hosts,
   tasks,
+  plan,
   busy,
 }: {
   workspace: WorkspaceState | undefined;
@@ -149,6 +169,7 @@ function Bubble({
   needs: readonly NeedsYouItem[];
   hosts: readonly ThreadSummary[];
   tasks: readonly CompanionTask[];
+  plan: CompanionPlan | undefined;
   busy: ActiveTool | undefined;
 }) {
   const api = useApi();
@@ -185,7 +206,7 @@ function Bubble({
         ))}
         <Tasks tasks={tasks} onOpen={openFull} />
         {target !== undefined ? (
-          <Exchange summary={target} busy={busy} />
+          <Exchange summary={target} plan={plan} busy={busy} />
         ) : workspace !== undefined ? (
           <div className="flex flex-col items-start gap-2 text-body text-muted-foreground">
             <span>No orchestrator runs in {workspace.workspace.name} yet.</span>
@@ -205,7 +226,7 @@ function Bubble({
 }
 
 const PLAN_MARK = { completed: "✓", inProgress: "•", pending: "○", cancelled: "–" } as const;
-const STEP_MARK = { done: "✓", doing: "•", todo: "○", blocked: "!", dropped: "–" } as const;
+const STEP_MARK = { done: "✓", doing: "•", todo: "○" } as const;
 const TASKS_SHOWN = 4;
 const DONE_SHOWN = 2;
 
@@ -224,7 +245,7 @@ function Tasks({
     <section data-testid="companion-tasks" aria-label="Tasks" className="flex flex-col gap-0.5">
       <h2 className="flex justify-between text-meta text-subtle">
         <span>Tasks</span>
-        <span>{tasksLine(tasks)}</span>
+        {shown.length < tasks.length && <span>{tasksLine(tasks)}</span>}
       </h2>
       {shown.map((task) => (
         <button
@@ -276,11 +297,10 @@ function PlanList({
   plan,
   todos,
 }: {
-  plan: ThreadSummary["plan"];
+  plan: CompanionPlan | undefined;
   todos: readonly PlanItem[] | undefined;
 }) {
-  const progress = planLine(plan);
-  if (plan !== undefined && progress !== undefined) {
+  if (plan !== undefined) {
     return (
       <section
         data-testid="companion-plan"
@@ -288,27 +308,29 @@ function PlanList({
         className="flex flex-col gap-0.5 text-meta"
       >
         <h2 className="flex min-w-0 justify-between gap-2 text-subtle">
-          <span className="truncate">{plan.goal}</span>
-          <span className="shrink-0 font-mono">
-            {progress.done} of {progress.total}
-          </span>
+          <span className="truncate">{plan.title}</span>
+          {plan.total > 0 ? (
+            <span className="shrink-0 font-mono">
+              {plan.done} of {plan.total}
+            </span>
+          ) : (
+            plan.current !== undefined && <span className="truncate">{plan.current}</span>
+          )}
         </h2>
         <ol className="flex flex-col gap-0.5">
-          {plan.steps
-            .filter((step) => step.status !== "dropped")
-            .map((step) => (
-              <li
-                key={step.id}
-                className={cn(
-                  "flex min-w-0 gap-1.5",
-                  step.status === "done" ? "text-subtle" : "text-muted-foreground",
-                  step.status === "doing" && "text-foreground",
-                )}
-              >
-                <span aria-hidden>{STEP_MARK[step.status]}</span>
-                <span className="truncate">{step.text}</span>
-              </li>
-            ))}
+          {plan.steps.map((step, index) => (
+            <li
+              key={index}
+              className={cn(
+                "flex min-w-0 gap-1.5",
+                step.status === "done" ? "text-subtle" : "text-muted-foreground",
+                step.status === "doing" && "text-foreground",
+              )}
+            >
+              <span aria-hidden>{STEP_MARK[step.status]}</span>
+              <span className="truncate">{step.text}</span>
+            </li>
+          ))}
         </ol>
       </section>
     );
@@ -336,7 +358,15 @@ function PlanList({
   );
 }
 
-function Exchange({ summary, busy }: { summary: ThreadSummary; busy: ActiveTool | undefined }) {
+function Exchange({
+  summary,
+  plan: kept,
+  busy,
+}: {
+  summary: ThreadSummary;
+  plan: CompanionPlan | undefined;
+  busy: ActiveTool | undefined;
+}) {
   const threadId = summary.thread.id;
   const messages = useThreadFeed(threadId, (s) => s.messages);
   const plan = useThreadsStore((s) => s.plans[threadId]);
@@ -347,10 +377,25 @@ function Exchange({ summary, busy }: { summary: ThreadSummary; busy: ActiveTool 
   const [expanded, setExpanded] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const newest = history.at(-1)?.id;
-  const toNewest = (sentinel: HTMLSpanElement | null) => {
+  const pinned = useRef(true);
+  useSubscription(() => {
     const element = scroller.current;
-    if (sentinel !== null && element !== null) element.scrollTop = element.scrollHeight;
-  };
+    if (element === null) return undefined;
+    const toEnd = () => {
+      if (pinned.current) element.scrollTop = element.scrollHeight;
+    };
+    const onScroll = () => {
+      pinned.current = element.scrollHeight - element.scrollTop - element.clientHeight < 8;
+    };
+    const observer = new ResizeObserver(toEnd);
+    for (const child of element.children) observer.observe(child);
+    element.addEventListener("scroll", onScroll, { passive: true });
+    toEnd();
+    return () => {
+      observer.disconnect();
+      element.removeEventListener("scroll", onScroll);
+    };
+  }, [newest, waiting, expanded]);
   return (
     <>
       <div
@@ -386,9 +431,8 @@ function Exchange({ summary, busy }: { summary: ThreadSummary; busy: ActiveTool 
             </div>
           ),
         )}
-        <span key={`${newest ?? ""}:${String(waiting)}`} ref={toNewest} aria-hidden />
       </div>
-      <PlanList plan={summary.plan} todos={plan} />
+      <PlanList plan={kept} todos={plan} />
       {step !== undefined && (
         <div
           data-testid="companion-step"

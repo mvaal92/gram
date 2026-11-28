@@ -29,7 +29,7 @@ export interface CompanionState {
 
 /**
  * Companion mode, kept across launches. Only the window changes: threads, workers and what a host
- * such as Runheim starts keep running behind it, and turning it off shows the same app as before.
+ * starts keep running behind it, and turning it off shows the same app as before.
  */
 export const useCompanion = create<CompanionState>()(
   persist(

@@ -71,8 +71,8 @@ export function CompanionPresence({
   /** A running worker's line, for the hint when the companion's own turn names no tool. */
   busy: ActiveTool | undefined;
   needs: readonly NeedsYouItem[];
-  /** The work it follows, whose endings drop out and ping. */
-  tasks: readonly CompanionTask[];
+  /** The work it follows, whose endings drop out and ping; `undefined` until it has loaded. */
+  tasks: readonly CompanionTask[] | undefined;
   /** Its own thread's turn is over, so its latest reply is final. */
   settled: boolean;
   panel: ReactNode;
@@ -123,7 +123,7 @@ function ThreadPresence({
   asks: boolean;
   busy: ActiveTool | undefined;
   needs: readonly NeedsYouItem[];
-  tasks: readonly CompanionTask[];
+  tasks: readonly CompanionTask[] | undefined;
   settled: boolean;
   panel: ReactNode;
   windowed: boolean;
@@ -264,7 +264,7 @@ function Presence({
   state: AvatarState;
   asks: boolean;
   needs: readonly NeedsYouItem[];
-  tasks: readonly CompanionTask[];
+  tasks: readonly CompanionTask[] | undefined;
   tool: ActiveTool | undefined;
   reply: SeenReply | undefined;
   settled: boolean;
@@ -452,12 +452,14 @@ function useDrop({
   reply: SeenReply | undefined;
   settled: boolean;
   needs: readonly NeedsYouItem[];
-  tasks: readonly CompanionTask[];
+  tasks: readonly CompanionTask[] | undefined;
 }) {
-  const endings = endingsOf(tasks);
+  const endings = endingsOf(tasks ?? []);
+  const tasksLoaded = tasks !== undefined;
   const signature = [
     open,
     loaded,
+    tasksLoaded,
     settled,
     reply?.id ?? "",
     ...needs.map((item) => item.key),
@@ -466,13 +468,27 @@ function useDrop({
   ].join("\n");
   const [seen, setSeen] = useState<{ signature: string; drops: DropSeen }>(() => ({
     signature: "",
-    drops: { replies: [], keys: needs.map((item) => item.key), endings: [], loaded: false },
+    drops: {
+      replies: [],
+      keys: needs.map((item) => item.key),
+      endings: [],
+      loaded: false,
+      tasksLoaded: false,
+    },
   }));
   const [ask, setAsk] = useState<Drop | undefined>(undefined);
   const [replied, flash] = useFlash<Drop>(DROP_MS);
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
   if (seen.signature !== signature) {
-    const noticed = noticeDrops(seen.drops, { reply, settled, needs, endings, loaded, open });
+    const noticed = noticeDrops(seen.drops, {
+      reply,
+      settled,
+      needs,
+      endings,
+      tasksLoaded,
+      loaded,
+      open,
+    });
     setSeen({ signature, drops: noticed.seen });
     if (noticed.ask !== undefined) setAsk(noticed.ask);
     const said = noticed.reply ?? noticed.ended;
