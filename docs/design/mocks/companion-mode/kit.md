@@ -20,7 +20,7 @@ every theme and in both modes.
 - **Motion.** Motion follows Settings → Motion (`data-motion`). A skin's `intensity` can only lower
   it: `still`, `calm` or `lively`, where `lively` is today's full motion. Reduced or Off holds
   every skin still.
-- **Embedders.** A host such as Runheim could ship its own skins and pick a default for its
+- **Embedders.** A host could ship its own skins and pick a default for its
   members through a mount option (`defaults.companion: "moss"`, `shell.companionSkins: [...]`), in
   the same way it sets `theme` and `defaults` today.
 

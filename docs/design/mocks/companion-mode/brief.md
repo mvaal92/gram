@@ -8,11 +8,11 @@ checked against.
 Gram's full window (sidebar, board, panels) is a lot for someone who wants to talk to one agent.
 Companion mode tries the personal-agent route: the whole UI becomes a small round animated avatar
 floating on the screen and a small input window that shows the reply. Everything behind it stays
-real: the orchestrator thread, its workers, and threads Runheim starts over `/embed/v1`.
+real: the orchestrator thread, its workers, and threads a host starts over `/embed/v1`.
 
 ## Who and where
 
-One developer on the desktop app, or Gram mounted in Runheim. It is a mode toggle (setting and
+One developer on the desktop app, or Gram mounted in a host app. It is a mode toggle (setting and
 shortcut); switching back restores the normal window untouched.
 
 ## Must show
@@ -20,7 +20,7 @@ shortcut); switching back restores the normal window untouched.
 - Avatar alone (idle), and its states: working, needs you, failed.
 - The open bubble: one input, the latest reply text, nothing else by default.
 - Tool calls in that tiny surface: three directions (status line, chips, avatar states).
-- What waits on the user (an approval, a question) and Runheim-driven activity, as one compact card.
+- What waits on the user (an approval, a question) and host-driven activity, as one compact card.
 - The way back to the full UI.
 
 ## Out of scope
