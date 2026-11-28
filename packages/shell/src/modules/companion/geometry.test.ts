@@ -23,7 +23,7 @@ describe("page input", () => {
   it("refuses what isn't a fit or a step, and bounds what is", () => {
     expect(readFit({ width: 300, height: 300, corner: "middle" })).toBeUndefined();
     expect(readFit({ width: 99_999, height: 1, corner: "top-left" })).toEqual({
-      width: 640,
+      width: 800,
       height: 64,
       corner: "top-left",
     });

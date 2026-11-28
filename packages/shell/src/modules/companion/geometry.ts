@@ -9,7 +9,7 @@ export interface Box {
 
 /** The companion window's size at rest: the icon and its margin. */
 export const RESTING_SIZE = 64;
-const MAX_SIZE = 640;
+const MAX_SIZE = 800;
 
 const clamp = (value: number, low: number, high: number) =>
   Math.min(Math.max(value, low), Math.max(low, high));
