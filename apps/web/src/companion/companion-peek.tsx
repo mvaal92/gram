@@ -9,10 +9,12 @@ import { useThreadFeed } from "@/stores/feeds";
 import { useThreadsStore } from "@/stores/threads";
 
 import { useCompanion } from "./companion-store";
+import { X } from "lucide-react";
+
 import {
   activeTool,
+  endingKey,
   hostLabel,
-  tasksLine,
   topLineOf,
   type ActiveTool,
   type CompanionPlan,
@@ -173,47 +175,57 @@ function Tasks({
   onOpen: (threadId?: ThreadId) => void;
 }) {
   if (tasks.length === 0) return null;
-  const live = tasks.filter((task) => task.phase !== "done");
-  const done = tasks.filter((task) => task.phase === "done");
-  const shown = [...live, ...done];
+  const shown = tasks;
   return (
     <section data-testid="companion-tasks" aria-label="Tasks" className="flex flex-col gap-0.5">
       <h2 className="flex justify-between text-meta text-subtle">
         <span>Tasks</span>
-        {shown.length < tasks.length && <span>{tasksLine(tasks)}</span>}
       </h2>
       {shown.map((task) => (
-        <button
-          key={task.id}
-          type="button"
-          data-testid="companion-task"
-          data-phase={task.phase}
-          title={task.line === undefined ? task.title : `${task.title}\n${task.line}`}
-          onClick={() => onOpen(task.id)}
-          className="flex min-w-0 items-center gap-1.5 rounded-md py-0.5 text-left text-meta hover:bg-surface-2"
-        >
-          <StatusDot state={TASK_DOT[task.phase]} still={task.phase !== "doing"} />
-          <span
-            className={cn(
-              "min-w-0 flex-1 truncate",
-              task.phase === "done" && "text-muted-foreground",
-            )}
+        <div key={task.id} className="group/task flex min-w-0 items-center gap-1">
+          <button
+            type="button"
+            data-testid="companion-task"
+            data-phase={task.phase}
+            title={task.line === undefined ? task.title : `${task.title}\n${task.line}`}
+            onClick={() => onOpen(task.id)}
+            className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md py-0.5 text-left text-meta hover:bg-surface-2"
           >
-            {task.title}
-          </span>
-          <span
-            className={cn(
-              "max-w-28 shrink-0 truncate",
-              task.phase === "needs"
-                ? "text-status-needs"
-                : task.phase === "failed"
-                  ? "text-destructive"
-                  : "text-subtle",
-            )}
-          >
-            {TASK_EDGE[task.phase](task)}
-          </span>
-        </button>
+            <StatusDot state={TASK_DOT[task.phase]} still={task.phase !== "doing"} />
+            <span
+              className={cn(
+                "min-w-0 flex-1 truncate",
+                task.phase === "done" && "text-muted-foreground",
+              )}
+            >
+              {task.title}
+            </span>
+            <span
+              className={cn(
+                "max-w-28 shrink-0 truncate",
+                task.phase === "needs"
+                  ? "text-status-needs"
+                  : task.phase === "failed"
+                    ? "text-destructive"
+                    : "text-subtle",
+              )}
+            >
+              {TASK_EDGE[task.phase](task)}
+            </span>
+          </button>
+          {task.phase === "failed" && (
+            <button
+              type="button"
+              data-testid="companion-task-dismiss"
+              aria-label={`Dismiss ${task.title}`}
+              title="Dismiss"
+              onClick={() => useCompanion.getState().dismiss(endingKey(task))}
+              className="grid size-5 shrink-0 place-items-center rounded text-subtle opacity-60 outline-none group-hover/task:opacity-100 hover:bg-surface-2 hover:text-foreground focus-visible:focus-ring"
+            >
+              <X aria-hidden className="size-3" />
+            </button>
+          )}
+        </div>
       ))}
     </section>
   );

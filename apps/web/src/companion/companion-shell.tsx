@@ -37,6 +37,7 @@ import {
   plansOf,
   shownPlan,
   tasksOf,
+  openTasks,
   threadPlanOf,
   workersLine,
   withEndings,
@@ -101,6 +102,8 @@ export function CompanionShell({ windowed = false }: { windowed?: boolean }) {
   const asksHere = needs.some((item) => item.threadId !== undefined && item.threadId === threadId);
   const ledger = useOrchestratorLedger(workspace?.workspace.id).data;
   const tasks = useMemo(() => tasksOf(ledger), [ledger]);
+  const dismissed = useCompanion((s) => s.dismissed);
+  const open = useMemo(() => openTasks(tasks, dismissed), [tasks, dismissed]);
   const ledgerIn = workspace === undefined || ledger !== undefined;
   const plans = useMemo(() => plansOf(ledger), [ledger]);
   const plan = workspace === undefined ? threadPlanOf(target?.plan) : shownPlan(plans, tasks);
@@ -159,6 +162,7 @@ export function CompanionShell({ windowed = false }: { windowed?: boolean }) {
             needs={needs}
             hosts={hostThreads(summaries)}
             tasks={tasks}
+            open={open}
             plan={plan}
             busy={busy}
           />
@@ -174,9 +178,11 @@ function Bubble({
   needs,
   hosts,
   tasks,
+  open,
   plan,
   busy,
 }: {
+  open: readonly CompanionTask[];
   workspace: WorkspaceState | undefined;
   target: ThreadSummary | undefined;
   needs: readonly NeedsYouItem[];
@@ -234,7 +240,7 @@ function Bubble({
         threadId={target?.thread.id}
         needs={needs}
         hosts={hosts}
-        tasks={tasks}
+        tasks={open}
         plan={plan}
         busy={busy}
         onOpen={openFull}
