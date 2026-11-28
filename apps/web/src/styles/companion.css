@@ -65,6 +65,19 @@
   cursor: grabbing;
 }
 
+/* A file held over the icon: a still inner ring and a wider accent mark, drawn inside the circle. */
+.companion-pebble[data-file-over] {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.companion-pebble[data-file-over] .companion-mark {
+  width: 16px;
+  height: 16px;
+  background: var(--accent);
+}
+:root[data-companion-window] .companion-pebble[data-file-over]:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
 .companion-mark {
   display: block;
   width: 10px;
