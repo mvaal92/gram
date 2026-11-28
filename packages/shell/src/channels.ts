@@ -116,4 +116,9 @@ export const Channels = {
   launchAtLoginSet: "gram:launch-at-login-set",
   launchAtLoginSettings: "gram:launch-at-login-settings",
   trayAction: "gram:tray-action",
+  companionOpen: "gram:companion-open",
+  companionClose: "gram:companion-close",
+  companionFit: "gram:companion-fit",
+  companionMoveBy: "gram:companion-move-by",
+  companionClosed: "gram:companion-closed",
 } as const;

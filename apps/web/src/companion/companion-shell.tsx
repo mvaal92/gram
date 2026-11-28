@@ -4,6 +4,7 @@ import { ArrowUp, LayoutPanelLeft } from "lucide-react";
 import { useMemo, useRef, useState, type FormEvent } from "react";
 
 import { useApi } from "@/api/context";
+import { useLayoutSync } from "@/lib/effects";
 import { Markdown } from "@/components/ai-elements/markdown";
 import { Button } from "@/components/ui/button";
 import { useShortcutHint } from "@/keyboard/use-shortcut-hint";
@@ -29,7 +30,7 @@ import {
   workerLine,
   type ActiveTool,
 } from "./companion-model";
-import { useCompanion } from "./companion-store";
+import { isCompanionWindow, leaveCompanion } from "./desktop-companion";
 
 function useCompanionWorkspace(): WorkspaceState | undefined {
   const viewed = useViewWorkspace();
@@ -43,7 +44,7 @@ function useCompanionWorkspace(): WorkspaceState | undefined {
  * input and the latest reply. It talks to the workspace's orchestrator, which runs its workers as
  * ever; asks, approvals and threads a host such as Runheim started show as compact cards.
  */
-export function CompanionShell() {
+export function CompanionShell({ windowed = false }: { windowed?: boolean }) {
   const workspace = useCompanionWorkspace();
   const all = useThreadsStore((s) => s.byId);
   const params: { threadId?: ThreadId } = useParams({ strict: false });
@@ -72,14 +73,27 @@ export function CompanionShell() {
   const asks = needsPerson(watched, needs.length);
   const busy = workerLine(watched, threadId);
 
+  useLayoutSync(() => {
+    if (!windowed) return undefined;
+    document.documentElement.dataset["companionWindow"] = "";
+    return () => {
+      delete document.documentElement.dataset["companionWindow"];
+    };
+  }, [windowed]);
+
   return (
-    <div data-testid="companion" className="relative h-dvh w-full overflow-hidden text-foreground">
+    <div
+      data-testid="companion"
+      data-windowed={windowed || undefined}
+      className="relative h-dvh w-full overflow-hidden text-foreground"
+    >
       <CompanionPresence
         threadId={threadId}
         state={state}
         asks={asks}
         busy={busy}
         needs={needs}
+        windowed={windowed}
         panel={
           <Bubble
             workspace={workspace}
@@ -109,11 +123,14 @@ function Bubble({
 }) {
   const api = useApi();
   const navigate = useNavigate();
-  const leave = useCompanion((s) => s.set);
   const keys = useShortcutHint("view.companion");
   const [starting, setStarting] = useState(false);
   const openFull = (threadId?: ThreadId) => {
-    leave(false);
+    if (isCompanionWindow()) {
+      leaveCompanion(threadId);
+      return;
+    }
+    leaveCompanion();
     if (threadId !== undefined) void navigate({ to: "/t/$threadId", params: { threadId } });
   };
   const start = () => {

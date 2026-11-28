@@ -188,6 +188,7 @@ import { processStart, sparedNow, watchTree, type TreeCheckDeps } from "./update
 import { probeSignature, runGh } from "./update/process.ts";
 import { normaliseUserEnv } from "./user-env.ts";
 import { reloadOnto } from "./window-reload.ts";
+import { installCompanionWindow } from "./companion-window.ts";
 import { setTimeout as sleep } from "node:timers/promises";
 
 const WEB_DEV_URL = process.env["GRAM_WEB_URL"] ?? "http://localhost:5173";
@@ -748,6 +749,7 @@ async function runApp() {
   });
   if (pagesOrigin !== undefined) pages.setOrigin(pagesOrigin);
   installTray(ipc, trayMode);
+  installCompanionWindow(ipc, WINDOW_CONTEXT, windowUrl);
   const openModels = () =>
     openSpeechModelStore({
       dataDir,

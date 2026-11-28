@@ -489,6 +489,32 @@ export type HostedWorkMessaged =
   | { readonly ok: true; readonly queued: boolean; readonly after?: string }
   | { readonly ok: false; readonly why: string; readonly unknown?: true };
 
+/** The corner of the companion window that stays put while it changes size. */
+export type CompanionCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+
+/**
+ * Companion mode as a window of its own: a small frameless, transparent window over the desktop
+ * holding the companion's icon and its dropdown, while the app's windows are hidden.
+ */
+export interface DesktopCompanion {
+  /** This window is the companion window. */
+  readonly isWindow: boolean;
+  /** Shows the companion window and hides the app's windows. */
+  open(): Promise<void>;
+  /** Closes the companion window and brings the app's windows back. */
+  close(): Promise<void>;
+  /** Sizes the companion window to its content, keeping `corner` where it is on screen. */
+  fit(size: {
+    readonly width: number;
+    readonly height: number;
+    readonly corner: CompanionCorner;
+  }): void;
+  /** Moves the companion window by a drag's step, kept on the display it is on. */
+  moveBy(delta: { readonly dx: number; readonly dy: number }): void;
+  /** Called in the app's windows when the companion window closed, by `close` or otherwise. */
+  onClosed(callback: () => void): () => void;
+}
+
 export interface DesktopBridge extends DesktopWindows {
   readonly platform: "darwin" | "win32" | "linux" | (string & {});
   /** Absolute filesystem path of a dropped/selected `File`. */
@@ -729,6 +755,8 @@ export interface DesktopBridge extends DesktopWindows {
     show(menu: TrayMenu): void;
     onAction(callback: (action: TrayAction) => void): () => void;
   };
+  /** Companion mode in its own window; absent from shells that predate it. */
+  readonly companion?: DesktopCompanion;
   /** Local dictation, behind the voice input setting; absent from shells that predate it. */
   readonly speech?: DesktopSpeech;
   /** The Preview tab's page, loopback only; absent from shells that predate it. */

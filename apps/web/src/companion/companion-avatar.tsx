@@ -1,6 +1,13 @@
-import type { ThreadId } from "@gram/contracts";
 import { LayoutPanelLeft } from "lucide-react";
-import { useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
+import type { CompanionCorner, ThreadId } from "@gram/contracts";
+import {
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import {
   ContextMenu,
@@ -9,6 +16,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { useShortcutHint } from "@/keyboard/use-shortcut-hint";
+import { useSubscription } from "@/lib/effects";
 import { useFlash } from "@/lib/timers";
 import { cn } from "@/lib/utils";
 import type { NeedsYouItem } from "@/orchestration/needs-you-items";
@@ -33,6 +41,7 @@ import {
 } from "./companion-position";
 import { faceOf, PEBBLE, skinStyle } from "./companion-skin";
 import { useCompanion } from "./companion-store";
+import { desktopCompanion, leaveCompanion } from "./desktop-companion";
 
 const STATE_WORDS: Record<AvatarState, string> = {
   idle: "Gram",
@@ -60,6 +69,7 @@ export function CompanionPresence({
   busy,
   needs,
   panel,
+  windowed = false,
 }: {
   threadId: ThreadId | undefined;
   state: AvatarState;
@@ -69,6 +79,8 @@ export function CompanionPresence({
   busy: ActiveTool | undefined;
   needs: readonly NeedsYouItem[];
   panel: ReactNode;
+  /** In the desktop app's companion window: dragging moves the window, which fits its content. */
+  windowed?: boolean;
 }) {
   return threadId === undefined ? (
     <Presence
@@ -79,6 +91,7 @@ export function CompanionPresence({
       reply={undefined}
       loaded
       panel={panel}
+      windowed={windowed}
     />
   ) : (
     <ThreadPresence
@@ -88,6 +101,7 @@ export function CompanionPresence({
       busy={busy}
       needs={needs}
       panel={panel}
+      windowed={windowed}
     />
   );
 }
@@ -99,6 +113,7 @@ function ThreadPresence({
   busy,
   needs,
   panel,
+  windowed,
 }: {
   threadId: ThreadId;
   state: AvatarState;
@@ -106,6 +121,7 @@ function ThreadPresence({
   busy: ActiveTool | undefined;
   needs: readonly NeedsYouItem[];
   panel: ReactNode;
+  windowed: boolean;
 }) {
   const messages = useThreadFeed(threadId, (s) => s.messages);
   const own = activeTool(messages);
@@ -121,6 +137,7 @@ function ThreadPresence({
       reply={own === undefined && loaded ? reply : undefined}
       loaded={loaded}
       panel={panel}
+      windowed={windowed}
     />
   );
 }
@@ -140,9 +157,79 @@ const dockStyle = ({ edge, t }: Dock): CSSProperties => {
   }
 };
 
+const WINDOW_INSET = 12;
+
+const cornerStyle = ({ vertical, horizontal }: Placement): CSSProperties => ({
+  ...(vertical === "below" ? { top: WINDOW_INSET } : { bottom: WINDOW_INSET }),
+  ...(horizontal === "end" ? { right: WINDOW_INSET } : { left: WINDOW_INSET }),
+});
+
+function screenPlacement(): Placement {
+  const { availLeft, availTop, availWidth, availHeight } = window.screen as Screen & {
+    availLeft?: number;
+    availTop?: number;
+  };
+  const x = window.screenX + window.innerWidth / 2 - (availLeft ?? 0);
+  const y = window.screenY + window.innerHeight / 2 - (availTop ?? 0);
+  return {
+    vertical: y > availHeight / 2 ? "above" : "below",
+    horizontal: x > availWidth / 2 ? "end" : "start",
+  };
+}
+
+const cornerOf = ({ vertical, horizontal }: Placement): CompanionCorner =>
+  `${vertical === "below" ? "top" : "bottom"}-${horizontal === "end" ? "right" : "left"}`;
+
+function useWindowFit(
+  windowed: boolean,
+  anchor: RefObject<HTMLDivElement | null>,
+  placement: Placement,
+  resting: boolean,
+): void {
+  useSubscription(() => {
+    const root = anchor.current;
+    const bridge = desktopCompanion();
+    if (!windowed || root === null || bridge === undefined) return undefined;
+    if (resting) {
+      bridge.fit({ width: 64, height: 64, corner: cornerOf(placement) });
+      return undefined;
+    }
+    const fit = () => {
+      let left = Number.POSITIVE_INFINITY;
+      let top = Number.POSITIVE_INFINITY;
+      let right = Number.NEGATIVE_INFINITY;
+      let bottom = Number.NEGATIVE_INFINITY;
+      for (const element of [root, ...root.querySelectorAll<HTMLElement>("*")]) {
+        const box = element.getBoundingClientRect();
+        if (box.width === 0 && box.height === 0) continue;
+        left = Math.min(left, box.left);
+        top = Math.min(top, box.top);
+        right = Math.max(right, box.right);
+        bottom = Math.max(bottom, box.bottom);
+      }
+      const end = placement.horizontal === "end";
+      const below = placement.vertical === "below";
+      bridge.fit({
+        width: Math.ceil((end ? window.innerWidth - left : right) + WINDOW_INSET),
+        height: Math.ceil((below ? bottom : window.innerHeight - top) + WINDOW_INSET),
+        corner: cornerOf(placement),
+      });
+    };
+    const observer = new ResizeObserver(fit);
+    observer.observe(root);
+    for (const child of root.children) observer.observe(child);
+    root.addEventListener("animationend", fit);
+    fit();
+    return () => {
+      observer.disconnect();
+      root.removeEventListener("animationend", fit);
+    };
+  }, [windowed, anchor, placement, resting]);
+}
+
 const besideStyle = ({ vertical, horizontal }: Placement): string =>
   cn(
-    "absolute flex w-max max-w-[min(22rem,calc(100vw-2rem))] flex-col gap-2",
+    "companion-beside absolute flex w-max max-w-[min(22rem,calc(100vw-2rem))] flex-col gap-2",
     vertical === "below" ? "top-full mt-2" : "bottom-full mb-2",
     horizontal === "end" ? "right-0 items-end" : "left-0 items-start",
   );
@@ -155,6 +242,7 @@ function Presence({
   reply,
   loaded,
   panel,
+  windowed,
 }: {
   state: AvatarState;
   asks: boolean;
@@ -163,6 +251,7 @@ function Presence({
   reply: string | undefined;
   loaded: boolean;
   panel: ReactNode;
+  windowed: boolean;
 }) {
   const open = useCompanion((s) => s.open);
   const setOpen = useCompanion((s) => s.setOpen);
@@ -174,11 +263,15 @@ function Presence({
   const press = useRef<{ start: Point; offset: Point; moved: boolean } | undefined>(undefined);
   const [dragging, setDragging] = useState<Point | undefined>(undefined);
   const dragged = useRef(false);
-  const placement = placementOf(dock);
+  const [onScreen, setOnScreen] = useState<Placement>(screenPlacement);
+  const placement = windowed ? onScreen : placementOf(dock);
+  const screenPress = useRef<Point | undefined>(undefined);
+  useWindowFit(windowed, anchor, placement, !open && drop.shown === undefined && !hovered);
 
   const area = () => anchor.current?.parentElement?.getBoundingClientRect();
   const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return;
+    screenPress.current = { x: event.screenX, y: event.screenY };
     const box = anchor.current?.getBoundingClientRect();
     if (box === undefined) return;
     press.current = {
@@ -196,6 +289,13 @@ function Presence({
     const dy = event.clientY - held.start.y;
     if (!held.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
     held.moved = true;
+    if (windowed) {
+      const last = screenPress.current;
+      if (last === undefined) return;
+      screenPress.current = { x: event.screenX, y: event.screenY };
+      desktopCompanion()?.moveBy({ dx: event.screenX - last.x, dy: event.screenY - last.y });
+      return;
+    }
     setDragging({
       x: Math.min(
         Math.max(0, event.clientX - bounds.left - held.offset.x),
@@ -213,6 +313,10 @@ function Presence({
     press.current = undefined;
     if (held?.moved !== true) return;
     dragged.current = true;
+    if (windowed) {
+      setOnScreen(screenPlacement());
+      return;
+    }
     if (dragging !== undefined && bounds !== undefined) setDock(snapDock(dragging, bounds));
     setDragging(undefined);
   };
@@ -230,14 +334,20 @@ function Presence({
     <div
       ref={anchor}
       data-testid="companion-anchor"
-      data-edge={dock.edge}
+      data-edge={windowed ? undefined : dock.edge}
+      data-windowed={windowed || undefined}
       data-dragging={dragging !== undefined || undefined}
       className="companion-anchor absolute"
       style={{
         ...skinStyle(PEBBLE, faceOf(PEBBLE, state, asks)),
-        ...(dragging === undefined ? dockStyle(dock) : { left: dragging.x, top: dragging.y }),
+        ...(windowed
+          ? cornerStyle(placement)
+          : dragging === undefined
+            ? dockStyle(dock)
+            : { left: dragging.x, top: dragging.y }),
       }}
     >
+      {windowed && <span aria-hidden className="companion-grip" />}
       <Avatar
         state={state}
         asks={asks}
@@ -345,7 +455,6 @@ function Avatar({
   onPointerMove: (event: PointerEvent<HTMLButtonElement>) => void;
   onPointerUp: () => void;
 }) {
-  const leave = useCompanion((s) => s.set);
   const keys = useShortcutHint("view.companion");
   return (
     <ContextMenu>
@@ -376,7 +485,7 @@ function Avatar({
         <span aria-hidden className="companion-mark" />
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onClick={() => leave(false)}>
+        <ContextMenuItem onClick={() => leaveCompanion()}>
           <LayoutPanelLeft />
           Open full Gram
           {keys !== undefined && (

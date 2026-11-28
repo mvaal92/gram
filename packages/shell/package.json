@@ -21,6 +21,10 @@
       "types": "./src/modules/agent-browser/main.ts",
       "default": "./src/modules/agent-browser/main.ts"
     },
+    "./modules/companion": {
+      "types": "./src/modules/companion/main.ts",
+      "default": "./src/modules/companion/main.ts"
+    },
     "./modules/connection": {
       "types": "./src/modules/connection/main.ts",
       "default": "./src/modules/connection/main.ts"
