@@ -220,7 +220,7 @@ function Tasks({
               aria-label={`Dismiss ${task.title}`}
               title="Dismiss"
               onClick={() => useCompanion.getState().dismiss(endingKey(task))}
-              className="grid size-5 shrink-0 place-items-center rounded text-subtle opacity-60 outline-none group-hover/task:opacity-100 hover:bg-surface-2 hover:text-foreground focus-visible:focus-ring"
+              className="grid size-5 shrink-0 place-items-center rounded-2xs text-subtle opacity-60 outline-none group-hover/task:opacity-100 hover:bg-surface-2 hover:text-foreground focus-visible:focus-ring"
             >
               <X aria-hidden className="size-3" />
             </button>
