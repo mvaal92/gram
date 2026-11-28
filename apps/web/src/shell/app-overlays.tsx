@@ -1,3 +1,4 @@
+import { CompanionSetup } from "@/companion/companion-setup";
 import { AwayNotifications } from "@/desktop/away-notifications";
 import { HistoryView } from "@/history/history-view";
 import { InboxView } from "@/inbox/inbox-view";
@@ -37,6 +38,7 @@ export function AppOverlays() {
       <ReportIssueDialog />
       <ShortcutOverlay />
       <LinkQuestion />
+      <CompanionSetup />
       <Toasts />
       {typeof window !== "undefined" && window.gram?.onNotificationAction !== undefined && (
         <AwayNotifications />

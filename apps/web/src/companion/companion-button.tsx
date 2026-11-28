@@ -5,7 +5,7 @@ import { useShortcutHint, withHint } from "@/keyboard/use-shortcut-hint";
 
 import { useCompanion } from "./companion-store";
 
-/** The title bar's way into companion mode, beside its shortcut. */
+/** The title bar's way into companion mode: its setup, where it is linked and turned on. */
 export function CompanionButton({ className }: { className?: string }) {
   const keys = useShortcutHint("view.companion");
   const label = keys === undefined ? "Companion mode" : withHint("Companion mode", keys);
@@ -17,7 +17,7 @@ export function CompanionButton({ className }: { className?: string }) {
       title={label}
       aria-label="Companion mode"
       data-testid="companion-enter"
-      onClick={() => useCompanion.getState().set(true)}
+      onClick={() => useCompanion.getState().setSetupOpen(true)}
     >
       <CircleDot />
     </Button>

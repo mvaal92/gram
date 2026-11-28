@@ -10,10 +10,21 @@ export interface CompanionState {
   readonly open: boolean;
   /** Where the icon rests, kept across launches. */
   readonly dock: Dock;
+  /** The workspace whose orchestrator it talks to, as linked in its setup; absent picks one. */
+  readonly workspaceId: string | undefined;
+  /** The skin it wears, by id; Pebble is the only one so far. */
+  readonly skin: string;
+  /** A desktop notification when a task it follows ends. */
+  readonly pings: boolean;
+  /** The setup dialog is open in full Gram. */
+  readonly setupOpen: boolean;
   set(on: boolean): void;
   toggle(): void;
   setOpen(open: boolean): void;
   setDock(dock: Dock): void;
+  setSetupOpen(open: boolean): void;
+  /** Saves the setup: which orchestrator, which skin, and whether it pings. */
+  link(setup: { workspaceId: string; skin: string; pings: boolean }): void;
 }
 
 /**
@@ -26,20 +37,55 @@ export const useCompanion = create<CompanionState>()(
       on: false,
       open: false,
       dock: DEFAULT_DOCK,
+      workspaceId: undefined,
+      skin: "pebble",
+      pings: true,
+      setupOpen: false,
       set: (on) => set({ on, open: false }),
       toggle: () => set((s) => ({ on: !s.on, open: false })),
       setOpen: (open) => set({ open }),
       setDock: (dock) => set({ dock }),
+      setSetupOpen: (setupOpen) => set({ setupOpen }),
+      link: ({ workspaceId, skin, pings }) => set({ workspaceId, skin, pings }),
     }),
     {
       name: "gram.companion",
       version: 1,
       storage: createJSONStorage(() => globalThis.localStorage),
-      partialize: ({ on, dock }) => ({ on, dock }),
+      partialize: ({ on, dock, workspaceId, skin, pings }) => ({
+        on,
+        dock,
+        workspaceId,
+        skin,
+        pings,
+      }),
       merge: (stored, current) => {
-        const { on, dock } = (stored ?? {}) as { on?: unknown; dock?: unknown };
-        return { ...current, on: on === true, dock: readDock(dock) };
+        const { on, dock, workspaceId, skin, pings } = (stored ?? {}) as {
+          on?: unknown;
+          dock?: unknown;
+          workspaceId?: unknown;
+          skin?: unknown;
+          pings?: unknown;
+        };
+        return {
+          ...current,
+          on: on === true,
+          dock: readDock(dock),
+          ...(typeof workspaceId === "string" ? { workspaceId } : {}),
+          skin: typeof skin === "string" ? skin : current.skin,
+          pings: pings !== false,
+        };
       },
     },
   ),
 );
+
+const onStorage = (event: StorageEvent) => {
+  if (event.key === "gram.companion") void useCompanion.persist.rehydrate();
+};
+
+/** Another window saved the setup: take it, so the companion window follows a link made in full Gram. */
+export function followStoredCompanion(): () => void {
+  window.addEventListener("storage", onStorage);
+  return () => window.removeEventListener("storage", onStorage);
+}

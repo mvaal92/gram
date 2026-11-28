@@ -16,12 +16,15 @@ import { useThreadFeed } from "@/stores/feeds";
 
 import {
   activeTool,
+  endingsOf,
   lastExchange,
   noticeDrops,
   type ActiveTool,
+  type CompanionTask,
   type Drop,
   type DropSeen,
   type AvatarState,
+  type SeenReply,
 } from "./companion-model";
 import {
   DRAG_THRESHOLD,
@@ -56,6 +59,8 @@ export function CompanionPresence({
   asks,
   busy,
   needs,
+  tasks,
+  settled,
   panel,
   windowed = false,
 }: {
@@ -66,6 +71,10 @@ export function CompanionPresence({
   /** A running worker's line, for the hint when the companion's own turn names no tool. */
   busy: ActiveTool | undefined;
   needs: readonly NeedsYouItem[];
+  /** The work it follows, whose endings drop out and ping. */
+  tasks: readonly CompanionTask[];
+  /** Its own thread's turn is over, so its latest reply is final. */
+  settled: boolean;
   panel: ReactNode;
   /** In the desktop app's companion window: dragging moves the window, which fits its content. */
   windowed?: boolean;
@@ -75,8 +84,10 @@ export function CompanionPresence({
       state={state}
       asks={asks}
       needs={needs}
+      tasks={tasks}
       tool={busy}
       reply={undefined}
+      settled
       loaded
       panel={panel}
       windowed={windowed}
@@ -88,6 +99,8 @@ export function CompanionPresence({
       asks={asks}
       busy={busy}
       needs={needs}
+      tasks={tasks}
+      settled={settled}
       panel={panel}
       windowed={windowed}
     />
@@ -100,6 +113,8 @@ function ThreadPresence({
   asks,
   busy,
   needs,
+  tasks,
+  settled,
   panel,
   windowed,
 }: {
@@ -108,21 +123,27 @@ function ThreadPresence({
   asks: boolean;
   busy: ActiveTool | undefined;
   needs: readonly NeedsYouItem[];
+  tasks: readonly CompanionTask[];
+  settled: boolean;
   panel: ReactNode;
   windowed: boolean;
 }) {
   const messages = useThreadFeed(threadId, (s) => s.messages);
   const own = activeTool(messages);
   const tool = own ?? busy;
-  const { reply } = lastExchange(messages);
+  const { reply, replyId } = lastExchange(messages);
   const loaded = useThreadFeed(threadId, (s) => s.phase === "live");
   return (
     <Presence
       state={tool !== undefined && state === "idle" ? "working" : state}
       asks={asks}
       needs={needs}
+      tasks={tasks}
       tool={tool}
-      reply={own === undefined && loaded ? reply : undefined}
+      reply={
+        reply === undefined || replyId === undefined ? undefined : { id: replyId, text: reply }
+      }
+      settled={settled && own === undefined}
       loaded={loaded}
       panel={panel}
       windowed={windowed}
@@ -189,7 +210,10 @@ function useWindowFit(
       let top = Number.POSITIVE_INFINITY;
       let right = Number.NEGATIVE_INFINITY;
       let bottom = Number.NEGATIVE_INFINITY;
-      for (const element of [root, ...root.querySelectorAll<HTMLElement>("*")]) {
+      for (const element of [
+        root,
+        ...root.querySelectorAll<HTMLElement>(":scope > *, :scope > .companion-beside > *"),
+      ]) {
         const box = element.getBoundingClientRect();
         if (box.width === 0 && box.height === 0) continue;
         left = Math.min(left, box.left);
@@ -207,7 +231,8 @@ function useWindowFit(
     };
     const observer = new ResizeObserver(fit);
     observer.observe(root);
-    for (const child of root.children) observer.observe(child);
+    for (const box of root.querySelectorAll(":scope > *, :scope > .companion-beside > *"))
+      observer.observe(box);
     root.addEventListener("animationend", fit);
     fit();
     return () => {
@@ -228,8 +253,10 @@ function Presence({
   state,
   asks,
   needs,
+  tasks,
   tool,
   reply,
+  settled,
   loaded,
   panel,
   windowed,
@@ -237,8 +264,10 @@ function Presence({
   state: AvatarState;
   asks: boolean;
   needs: readonly NeedsYouItem[];
+  tasks: readonly CompanionTask[];
   tool: ActiveTool | undefined;
-  reply: string | undefined;
+  reply: SeenReply | undefined;
+  settled: boolean;
   loaded: boolean;
   panel: ReactNode;
   windowed: boolean;
@@ -247,7 +276,7 @@ function Presence({
   const setOpen = useCompanion((s) => s.setOpen);
   const dock = useCompanion((s) => s.dock);
   const setDock = useCompanion((s) => s.setDock);
-  const drop = useDrop(open, loaded, reply, needs);
+  const drop = useDrop({ open, loaded, reply, settled, needs, tasks });
   const [hovered, setHovered] = useState(false);
   const anchor = useRef<HTMLDivElement>(null);
   const press = useRef<{ start: Point; offset: Point; moved: boolean } | undefined>(undefined);
@@ -400,11 +429,7 @@ function Presence({
                     placement.vertical === "below" ? "origin-top" : "origin-bottom",
                   )}
                 >
-                  {drop.shown.tone === "needs" && (
-                    <span className="mb-0.5 block text-meta font-semibold text-status-needs">
-                      Needs you
-                    </span>
-                  )}
+                  <DropHeading drop={drop.shown} />
                   {drop.shown.text}
                 </button>
               )}
@@ -414,27 +439,45 @@ function Presence({
   );
 }
 
-function useDrop(
-  open: boolean,
-  loaded: boolean,
-  reply: string | undefined,
-  needs: readonly NeedsYouItem[],
-) {
-  const keys = needs.map((item) => item.key).join("\n");
-  const [seen, setSeen] = useState<DropSeen>(() => ({
-    reply,
-    keys: needs.map((item) => item.key),
+function useDrop({
+  open,
+  loaded,
+  reply,
+  settled,
+  needs,
+  tasks,
+}: {
+  open: boolean;
+  loaded: boolean;
+  reply: SeenReply | undefined;
+  settled: boolean;
+  needs: readonly NeedsYouItem[];
+  tasks: readonly CompanionTask[];
+}) {
+  const endings = endingsOf(tasks);
+  const signature = [
+    open,
     loaded,
-    count: 0,
+    settled,
+    reply?.id ?? "",
+    ...needs.map((item) => item.key),
+    "|",
+    ...endings.map((task) => `${task.id}:${task.phase}`),
+  ].join("\n");
+  const [seen, setSeen] = useState<{ signature: string; drops: DropSeen }>(() => ({
+    signature: "",
+    drops: { replies: [], keys: needs.map((item) => item.key), endings: [], loaded: false },
   }));
   const [ask, setAsk] = useState<Drop | undefined>(undefined);
   const [replied, flash] = useFlash<Drop>(DROP_MS);
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
-  if (seen.reply !== reply || seen.keys.join("\n") !== keys || seen.loaded !== loaded) {
-    const noticed = noticeDrops(seen, { reply, needs, loaded, open });
-    setSeen(noticed.seen);
+  if (seen.signature !== signature) {
+    const noticed = noticeDrops(seen.drops, { reply, settled, needs, endings, loaded, open });
+    setSeen({ signature, drops: noticed.seen });
     if (noticed.ask !== undefined) setAsk(noticed.ask);
-    if (noticed.reply !== undefined) flash(noticed.reply);
+    const said = noticed.reply ?? noticed.ended;
+    if (said !== undefined) flash(said);
+    if (noticed.ended !== undefined) pingEnding(noticed.ended);
   }
   const askStands =
     ask !== undefined && !dismissed.has(ask.key) && needs.some((item) => item.key === ask.key);
@@ -451,6 +494,37 @@ function useDrop(
       if (shown !== undefined) setDismissed((before) => new Set(before).add(shown.key));
     },
   };
+}
+
+const HEADING: Record<
+  Drop["tone"],
+  { readonly words: string; readonly className: string } | undefined
+> = {
+  needs: { words: "Needs you", className: "text-status-needs" },
+  done: { words: "Done", className: "text-muted-foreground" },
+  failed: { words: "Failed", className: "text-destructive" },
+  reply: undefined,
+};
+
+function DropHeading({ drop }: { drop: Drop }) {
+  const heading = HEADING[drop.tone];
+  if (heading === undefined) return null;
+  return (
+    <span className={cn("mb-0.5 block truncate text-meta font-semibold", heading.className)}>
+      {drop.title === undefined ? heading.words : `${heading.words} · ${drop.title}`}
+    </span>
+  );
+}
+
+function pingEnding(drop: Drop): void {
+  if (!useCompanion.getState().pings) return;
+  const bridge = typeof window === "undefined" ? undefined : window.gram;
+  if (bridge === undefined || !(bridge.companion?.isWindow ?? false)) return;
+  bridge.notify({
+    id: `companion:${drop.key}`,
+    title: `${drop.tone === "failed" ? "Failed" : "Done"}: ${drop.title ?? "task"}`,
+    body: drop.text,
+  });
 }
 
 function Avatar({

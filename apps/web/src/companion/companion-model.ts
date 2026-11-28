@@ -1,4 +1,11 @@
-import type { GramUIMessage, ThreadId, ThreadSummary } from "@gram/contracts";
+import type {
+  GramUIMessage,
+  OrchestratorLedger,
+  ThreadId,
+  ThreadPlan,
+  ThreadSummary,
+  WorkerLedgerEntry,
+} from "@gram/contracts";
 
 import { isToolPart, toolNameOf, toolPhase, type AnyToolPart } from "@/thread/parts";
 import { stepLabel } from "@/thread/tool-group-model";
@@ -65,19 +72,24 @@ const fromGram = (message: GramUIMessage): boolean =>
 export function lastExchange(messages: readonly GramUIMessage[]): {
   readonly asked: string | undefined;
   readonly reply: string | undefined;
+  readonly replyId?: string;
 } {
-  let reply: string | undefined;
+  let reply: { text: string; id: string } | undefined;
+  const found = (asked: string | undefined) =>
+    reply === undefined
+      ? { asked, reply: undefined }
+      : { asked, reply: reply.text, replyId: reply.id };
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]!;
     const text = textOf(message);
     if (text === "") continue;
     if (message.role === "user") {
       if (fromGram(message)) continue;
-      return { asked: text, reply };
+      return found(text);
     }
-    reply ??= text;
+    reply ??= { text, id: message.id };
   }
-  return { asked: undefined, reply };
+  return found(undefined);
 }
 
 const kindOf = (tool: string): ToolKind => {
@@ -181,36 +193,59 @@ export function ownLine(
   return undefined;
 }
 
-/** What drops out of the icon while the dropdown is closed: a new ask, or a new reply. */
+/** What drops out of the icon while the dropdown is closed: a new ask, a task's end, or a reply. */
 export interface Drop {
   readonly key: string;
-  readonly tone: "reply" | "needs";
+  readonly tone: "reply" | "needs" | "done" | "failed";
+  readonly text: string;
+  /** The task it ends, for a `done` or `failed` drop. */
+  readonly title?: string;
+}
+
+/** A reply as the drops see it: its message, so the same reply never speaks twice. */
+export interface SeenReply {
+  readonly id: string;
   readonly text: string;
 }
 
 /** What the drops have already noticed, so only something new speaks. */
 export interface DropSeen {
-  readonly reply: string | undefined;
+  /** Every reply already shown or already there when the thread loaded. */
+  readonly replies: readonly string[];
   readonly keys: readonly string[];
-  /** The thread's messages were in, so a reply that changes now is new rather than loaded. */
+  /** Task endings already noticed, by `endingKey`. */
+  readonly endings: readonly string[];
+  /** The thread's messages were in, so a reply that comes now is new rather than loaded. */
   readonly loaded: boolean;
-  /** Replies dropped so far, which keeps each reply's drop its own even when two read alike. */
-  readonly count: number;
 }
 
+const SEEN_KEEP = 200;
+const keep = (list: readonly string[], add: string | undefined): readonly string[] =>
+  add === undefined || list.includes(add) ? list : [...list, add].slice(-SEEN_KEEP);
+
 /**
- * What changed since `seen`: a new ask drops out ahead of a new reply, and nothing does while
- * the dropdown is open or before the thread's messages are in.
+ * What changed since `seen`: a new ask drops out first, then a task that ended, then a reply once
+ * the turn that wrote it has settled. A reply is known by its message, so one that shows again
+ * after a tool call, a worker's report or a reload never drops out a second time. Nothing speaks
+ * while the dropdown is open or before the thread's messages are in.
  */
 export function noticeDrops(
   seen: DropSeen,
   now: {
-    readonly reply: string | undefined;
+    readonly reply: SeenReply | undefined;
+    /** The turn that wrote `reply` is over: nothing runs and nothing streams. */
+    readonly settled: boolean;
     readonly needs: readonly { readonly key: string; readonly title: string }[];
+    readonly endings: readonly CompanionTask[];
     readonly loaded: boolean;
     readonly open: boolean;
   },
-): { readonly seen: DropSeen; readonly ask?: Drop; readonly reply?: Drop } {
+): {
+  readonly seen: DropSeen;
+  readonly ask?: Drop;
+  readonly ended?: Drop;
+  readonly reply?: Drop;
+} {
   const keys = now.needs.map((item) => item.key);
   const speaks = seen.loaded && !now.open;
   const fresh = now.needs.find((item) => !seen.keys.includes(item.key));
@@ -218,19 +253,153 @@ export function noticeDrops(
     speaks && fresh !== undefined
       ? { key: fresh.key, tone: "needs", text: excerpt(fresh.title, 90) }
       : undefined;
+  const newEnding = now.endings.find((task) => !seen.endings.includes(endingKey(task)));
+  const ended: Drop | undefined =
+    speaks && ask === undefined && newEnding !== undefined
+      ? {
+          key: `end:${endingKey(newEnding)}`,
+          tone: newEnding.phase === "failed" ? "failed" : "done",
+          title: newEnding.title,
+          text: excerpt(newEnding.line ?? newEnding.title, 140),
+        }
+      : undefined;
+  const replyNew =
+    now.reply !== undefined && now.settled && !seen.replies.includes(now.reply.id)
+      ? now.reply
+      : undefined;
   const reply: Drop | undefined =
-    speaks && ask === undefined && now.reply !== undefined && now.reply !== seen.reply
-      ? { key: `reply:${seen.count + 1}`, tone: "reply", text: excerpt(now.reply, 160) }
+    speaks && ask === undefined && replyNew !== undefined
+      ? { key: `reply:${replyNew.id}`, tone: "reply", text: excerpt(replyNew.text, 160) }
+      : undefined;
+  const quiet = !speaks;
+  const replies =
+    quiet && now.reply !== undefined
+      ? keep(seen.replies, now.reply.id)
+      : keep(seen.replies, reply === undefined ? undefined : replyNew?.id);
+  const endings = now.endings
+    .map(endingKey)
+    .filter(() => quiet || ended !== undefined)
+    .reduce(keep, seen.endings);
+  return {
+    seen: { replies, keys, endings, loaded: now.loaded },
+    ...(ask === undefined ? {} : { ask }),
+    ...(ended === undefined ? {} : { ended }),
+    ...(reply === undefined ? {} : { reply }),
+  };
+}
+
+/** Where a task the companion follows stands, in the four words a person needs. */
+export type TaskPhase = "doing" | "needs" | "done" | "failed";
+
+/** One piece of work the companion follows: a worker its orchestrator started. */
+export interface CompanionTask {
+  readonly id: ThreadId;
+  readonly title: string;
+  readonly phase: TaskPhase;
+  /** What it is at, what it asks, how it ended or why it failed, in a few words. */
+  readonly line?: string;
+  /** Plan progress while it works, as `2/4`. */
+  readonly progress?: string;
+  readonly at: number;
+}
+
+const PHASE_OF: Record<WorkerLedgerEntry["state"], TaskPhase | undefined> = {
+  briefed: "doing",
+  working: "doing",
+  needsUser: "needs",
+  question: "needs",
+  blocked: "needs",
+  done: "done",
+  inReview: "done",
+  readyToMerge: "done",
+  delivered: "done",
+  merged: "done",
+  error: "failed",
+  archived: undefined,
+};
+
+const taskOf = (worker: WorkerLedgerEntry): CompanionTask | undefined => {
+  const phase = worker.status === "error" ? "failed" : PHASE_OF[worker.state];
+  if (phase === undefined) return undefined;
+  const report = worker.lastReport?.summary.trim();
+  const line =
+    phase === "failed"
+      ? (worker.lastError?.text ?? report)
+      : phase === "needs"
+        ? "asks you"
+        : phase === "done"
+          ? report
+          : (worker.activity ?? worker.plan?.headline ?? worker.nextStep);
+  const progress =
+    phase === "doing" && worker.plan !== undefined && worker.plan.total > 0
+      ? `${worker.plan.done}/${worker.plan.total}`
       : undefined;
   return {
-    seen: {
-      reply: now.reply,
-      keys,
-      loaded: now.loaded,
-      count: seen.count + (reply === undefined ? 0 : 1),
-    },
-    ...(ask === undefined ? {} : { ask }),
-    ...(reply === undefined ? {} : { reply }),
+    id: worker.threadId,
+    title: worker.title,
+    phase,
+    ...(line === undefined || line === "" ? {} : { line }),
+    ...(progress === undefined ? {} : { progress }),
+    at: worker.lastReport?.at ?? 0,
+  };
+};
+
+const PHASE_RANK: Record<TaskPhase, number> = { needs: 0, doing: 1, failed: 2, done: 3 };
+
+/**
+ * The tasks the companion follows for the person: every worker in the orchestrator's ledger but
+ * the archived, what asks first, then what runs, then how the rest ended, newest first.
+ */
+export function tasksOf(
+  ledger: Pick<OrchestratorLedger, "features"> | undefined,
+): readonly CompanionTask[] {
+  if (ledger === undefined) return [];
+  return ledger.features
+    .flatMap((feature) => feature.workers)
+    .flatMap((worker) => taskOf(worker) ?? [])
+    .toSorted((a, b) => PHASE_RANK[a.phase] - PHASE_RANK[b.phase] || b.at - a.at);
+}
+
+/** A task's ending, as the drops and pings know it: the same ending never speaks twice. */
+export const endingKey = (task: Pick<CompanionTask, "id" | "phase">): string =>
+  `${task.id}:${task.phase}`;
+
+/** The tasks that have ended, done or failed. */
+export const endingsOf = (tasks: readonly CompanionTask[]): readonly CompanionTask[] =>
+  tasks.filter((task) => task.phase === "done" || task.phase === "failed");
+
+/** The counts the hint and the tasks heading show: "2 running · 1 done". */
+export function tasksLine(tasks: readonly CompanionTask[]): string | undefined {
+  const count = (phase: TaskPhase) => tasks.filter((task) => task.phase === phase).length;
+  const parts = (
+    [
+      ["needs", "asks you"],
+      ["doing", "running"],
+      ["failed", "failed"],
+      ["done", "done"],
+    ] as const
+  )
+    .map(([phase, words]) => ({ n: count(phase), words }))
+    .filter(({ n }) => n > 0)
+    .map(({ n, words }) => `${n} ${words}`);
+  return parts.length === 0 ? undefined : parts.join(" · ");
+}
+
+/** The plan's progress in a few words: its step under way and how far along it is. */
+export function planLine(
+  plan: Pick<ThreadPlan, "goal" | "steps"> | undefined,
+): { readonly done: number; readonly total: number; readonly current?: string } | undefined {
+  if (plan === undefined) return undefined;
+  const steps = plan.steps.filter((step) => step.status !== "dropped");
+  if (steps.length === 0) return undefined;
+  const current =
+    steps.find((step) => step.status === "doing") ??
+    steps.find((step) => step.status === "blocked") ??
+    steps.find((step) => step.status === "todo");
+  return {
+    done: steps.filter((step) => step.status === "done").length,
+    total: steps.length,
+    ...(current === undefined ? {} : { current: current.text }),
   };
 }
 
