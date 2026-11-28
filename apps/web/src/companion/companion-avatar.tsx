@@ -230,9 +230,11 @@ function Presence({
   const dragged = useRef(false);
   const [onScreen, setOnScreen] = useState<Placement>(() => placementAt("top-right"));
   const [placed, setPlaced] = useState(false);
+  const [cornerKnown, setCornerKnown] = useState(!windowed);
   const place = (found: Placement) => {
     setOnScreen(found);
     setPlaced(true);
+    setCornerKnown(true);
   };
   const placement = windowed ? onScreen : placementOf(dock);
   const moving = useRef(false);
@@ -245,9 +247,16 @@ function Presence({
   if (resting && placed) setPlaced(false);
   const findPlace = () => findPlacement(windowed, setOnScreen);
   useExternalSync(() => {
-    if (!resting) findPlacement(windowed, place);
-  }, [resting, windowed]);
-  useWindowFit(windowed, anchor, placement, resting, open && !settled, resting || placed);
+    if (!resting || !cornerKnown) findPlacement(windowed, place);
+  }, [resting, windowed, cornerKnown]);
+  useWindowFit(
+    windowed,
+    anchor,
+    placement,
+    resting,
+    open && !settled,
+    resting ? cornerKnown : placed,
+  );
 
   const area = () => anchor.current?.parentElement?.getBoundingClientRect();
   const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {

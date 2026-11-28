@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useExternalSync, useSubscription } from "@/lib/effects";
 import { sleep } from "@/lib/sleep";
 
-import { useCompanion } from "./companion-store";
+import { followStoredCompanion, useCompanion } from "./companion-store";
 
 const OPEN_THREAD_KEY = "gram.companion.openThread";
 
@@ -58,7 +58,9 @@ const takeOpenThread = (): string | undefined => {
 
 /**
  * In the desktop app's own window: companion mode opens the companion window, which hides this
- * one, and the mode ends when that window closes, opening the thread it asked for.
+ * one, and the mode ends when that window closes, opening the thread it asked for. It keeps what
+ * the companion window saved (sizes, opacity, dismissals), so ending the mode never writes back a
+ * stale copy.
  */
 export function useDesktopCompanionSync(): void {
   const on = useCompanion((s) => s.on);
@@ -68,12 +70,15 @@ export function useDesktopCompanionSync(): void {
   useExternalSync(() => {
     if (app !== undefined && on) void openWhenReady(app);
   }, [app, on]);
+  useSubscription(() => (app === undefined ? undefined : followStoredCompanion()), [app]);
   useSubscription(
     () =>
       app?.onClosed(() => {
-        useCompanion.getState().set(false);
-        const threadId = takeOpenThread();
-        if (threadId !== undefined) void navigate({ to: "/t/$threadId", params: { threadId } });
+        void useCompanion.persist.rehydrate().then(() => {
+          useCompanion.getState().set(false);
+          const threadId = takeOpenThread();
+          if (threadId !== undefined) void navigate({ to: "/t/$threadId", params: { threadId } });
+        });
       }),
     [app, navigate],
   );

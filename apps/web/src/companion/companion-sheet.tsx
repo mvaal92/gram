@@ -142,7 +142,7 @@ function TaskSheet({ threadId, task }: { threadId: ThreadId; task: CompanionTask
       className="companion-reader flex flex-col gap-3 px-5 py-4"
     >
       {phase !== undefined && (
-        <p className="text-meta text-subtle">
+        <p className="text-meta text-muted-foreground">
           {phase}
           {task?.line === undefined ? "" : ` · ${task.line}`}
         </p>
