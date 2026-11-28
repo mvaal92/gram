@@ -121,4 +121,5 @@ export const Channels = {
   companionFit: "gram:companion-fit",
   companionMoveBy: "gram:companion-move-by",
   companionClosed: "gram:companion-closed",
+  companionPlacement: "gram:companion-placement",
 } as const;

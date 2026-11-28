@@ -1,12 +1,13 @@
 import type { CompanionCorner } from "@gram/contracts/desktop-bridge";
 import { readFileSync, writeFileSync } from "node:fs";
 
-import { screen, type BrowserWindow, type WebContents } from "electron";
+import { app, screen, type BrowserWindow, type WebContents } from "electron";
 
 import { Channels } from "../../channels.ts";
 import { appWindows, markCompanionWindow } from "../../electron/decision-windows.ts";
 import type { ShellIpc } from "../ipc.ts";
 import {
+  cornerIn,
   fitBox,
   readFit,
   readPoint,
@@ -16,24 +17,79 @@ import {
   within,
   type Box,
 } from "./geometry.ts";
+import { areaFor, hyprlandPlacer, hyprlandSocket } from "./hyprland.ts";
 
 export interface CompanionDeps {
   /** A frameless, transparent window at `bounds` loading the companion page; not yet shown. */
   readonly create: (bounds: Box) => BrowserWindow;
   /** Where the companion's resting place is kept across launches. */
   readonly storePath: string;
+  /** The window's title, which the window manager finds it by. */
+  readonly title: string;
+  readonly log?: (message: string, error?: unknown) => void;
 }
 
-const workArea = (box: Box): Box => screen.getDisplayMatching(box).workArea;
+interface Placer {
+  mapped(): Promise<unknown>;
+  bounds(): Promise<Box | undefined>;
+  areas(): Promise<readonly Box[]>;
+  set(box: Box): Promise<void>;
+}
 
-const readStored = (path: string): Box | undefined => {
+const electronPlacer = (win: BrowserWindow): Placer => ({
+  mapped: () => Promise.resolve(true),
+  bounds: () => Promise.resolve(win.isDestroyed() ? undefined : win.getBounds()),
+  areas: () => Promise.resolve(screen.getAllDisplays().map((display) => display.workArea)),
+  set: (box) => {
+    if (!win.isDestroyed()) win.setBounds(box);
+    return Promise.resolve();
+  },
+});
+
+const compositorOrElectronPlacer = (win: BrowserWindow, title: string): Placer => {
+  const socket = process.platform === "linux" ? hyprlandSocket() : undefined;
+  if (socket === undefined || process.env["XDG_SESSION_TYPE"] !== "wayland") {
+    return electronPlacer(win);
+  }
+  const hyprland = hyprlandPlacer(socket, process.pid, title);
+  const fallback = electronPlacer(win);
+  return {
+    mapped: () => hyprland.mapped(),
+    bounds: async () => {
+      const at = await hyprland.bounds();
+      if (at === undefined || win.isDestroyed()) return fallback.bounds();
+      const [width = at.width, height = at.height] = win.getSize();
+      return { ...at, width, height };
+    },
+    areas: async () => {
+      const areas = await hyprland.areas();
+      return areas.length > 0 ? areas : fallback.areas();
+    },
+    set: async (box) => {
+      if (win.isDestroyed()) return;
+      await fallback.set(box);
+      await hyprland.moveTo(box);
+    },
+  };
+};
+
+interface Stored {
+  readonly box: Box | undefined;
+  readonly openAtLastQuit: boolean;
+}
+
+const readStored = (path: string): Stored => {
   try {
-    const point = readPoint(JSON.parse(readFileSync(path, "utf8")));
-    return point === undefined
-      ? undefined
-      : { ...point, width: RESTING_SIZE, height: RESTING_SIZE };
+    const value: unknown = JSON.parse(readFileSync(path, "utf8"));
+    const point = readPoint(value);
+    return {
+      box:
+        point === undefined ? undefined : { ...point, width: RESTING_SIZE, height: RESTING_SIZE },
+      openAtLastQuit:
+        typeof value === "object" && value !== null && "open" in value && value.open === true,
+    };
   } catch {
-    return undefined;
+    return { box: undefined, openAtLastQuit: false };
   }
 };
 
@@ -49,92 +105,169 @@ const restore = () => {
   }
 };
 
+const hideAppWindows = () => {
+  for (const each of appWindows()) each.hide();
+};
+
 /**
  * Companion mode as its own window. `open` hides the app's windows and shows a small frameless,
  * transparent window holding the companion; closing it, from the page or the window manager,
- * brings them back and tells their pages. Only the companion window's own page may size or move it.
+ * brings them back and tells their pages, while Gram quitting leaves it to open again at the next
+ * launch (`reopen`). Only the companion window's own page may size or move it, and every placement
+ * runs after the one before it.
  */
 export function installCompanion(ipc: ShellIpc, deps: CompanionDeps) {
   let win: BrowserWindow | undefined;
+  let placer: Placer | undefined;
   let corner: CompanionCorner = "top-right";
+  let queue: Promise<unknown> = Promise.resolve();
+  let known: { box: Box; area: Box } | undefined;
+  let quitting = false;
 
-  const own = (sender: WebContents) =>
-    win !== undefined && !win.isDestroyed() && sender === win.webContents;
-
-  const resting = (): Box | undefined => {
-    if (win === undefined || win.isDestroyed()) return undefined;
-    const bounds = win.getBounds();
-    return fitBox(bounds, { width: RESTING_SIZE, height: RESTING_SIZE, corner }, workArea(bounds));
+  const log = deps.log ?? (() => undefined);
+  const live = () => win !== undefined && !win.isDestroyed();
+  const own = (sender: WebContents) => live() && sender === win?.webContents;
+  const serial = <T>(work: () => Promise<T>): Promise<T | undefined> => {
+    const next = queue.then(work, work).catch((error: unknown) => {
+      log("companion: placement", error);
+      return undefined;
+    });
+    queue = next;
+    return next;
   };
 
-  const remember = () => {
-    const box = resting();
-    if (box === undefined) return;
+  const where = async (): Promise<{ box: Box; area: Box } | undefined> => {
+    if (placer === undefined) return undefined;
+    const box = await placer.bounds();
+    if (box === undefined) return undefined;
+    const area = areaFor(box, await placer.areas());
+    if (area !== undefined) known = { box, area };
+    return area === undefined ? undefined : { box, area };
+  };
+
+  const put = async (box: Box, area: Box) => {
+    if (placer === undefined) return;
+    await placer.set(box);
+    known = { box, area };
+  };
+
+  const remember = (open: boolean) => {
+    const rest =
+      known === undefined
+        ? readStored(deps.storePath).box
+        : fitBox(known.box, { width: RESTING_SIZE, height: RESTING_SIZE, corner }, known.area);
     try {
-      writeFileSync(deps.storePath, JSON.stringify({ x: box.x, y: box.y }));
-    } catch {
-      return;
+      writeFileSync(
+        deps.storePath,
+        JSON.stringify(rest === undefined ? { open } : { x: rest.x, y: rest.y, open }),
+      );
+    } catch (error) {
+      log("companion: remember", error);
     }
   };
+
+  const place = (stored: Box | undefined) =>
+    serial(async () => {
+      if (placer === undefined) return;
+      await placer.mapped();
+      const areas = await placer.areas();
+      const now = await placer.bounds();
+      const target =
+        stored !== undefined
+          ? within(stored, areaFor(stored, areas) ?? stored)
+          : now === undefined
+            ? undefined
+            : startBox(areaFor(now, areas) ?? now);
+      if (target === undefined) return;
+      const area = areaFor(target, areas) ?? target;
+      corner = cornerIn(target, area);
+      await put(target, area);
+      remember(true);
+    });
 
   const open = () => {
     if (win !== undefined && !win.isDestroyed()) {
-      win.show();
+      win.showInactive();
+      hideAppWindows();
       return;
     }
-    const stored = readStored(deps.storePath);
-    const bounds =
-      stored === undefined
-        ? startBox(screen.getPrimaryDisplay().workArea)
-        : within(stored, workArea(stored));
-    const created = deps.create(bounds);
+    const stored = readStored(deps.storePath).box;
+    const created = deps.create(stored ?? startBox(screen.getPrimaryDisplay().workArea));
     win = created;
+    placer = compositorOrElectronPlacer(created, deps.title);
     corner = "top-right";
+    known = undefined;
     markCompanionWindow(created.webContents);
     created.once("ready-to-show", () => {
       if (created.isDestroyed()) return;
       created.showInactive();
-      for (const each of appWindows()) each.hide();
+      void place(stored);
+      hideAppWindows();
     });
-    created.on("moved", remember);
-    created.on("close", remember);
     created.once("closed", () => {
-      if (win === created) win = undefined;
+      if (win === created) {
+        win = undefined;
+        placer = undefined;
+      }
+      if (quitting) return;
+      remember(false);
       restore();
     });
   };
 
-  const close = () => {
-    if (win === undefined || win.isDestroyed()) {
+  const close = async () => {
+    if (!live()) {
       restore();
       return;
     }
-    win.close();
+    await serial(where);
+    win?.close();
   };
+
+  app.on("before-quit", () => {
+    if (quitting) return;
+    quitting = true;
+    if (live()) remember(true);
+  });
 
   ipc.handle(Channels.companionOpen, () => open());
   ipc.handle(Channels.companionClose, () => close());
+  ipc.handle(Channels.companionPlacement, async (_input, event) => {
+    if (!own(event.sender)) return corner;
+    const at = await serial(where);
+    if (at !== undefined) corner = cornerIn(at.box, at.area);
+    return corner;
+  });
   ipc.on(Channels.companionFit, (event, input) => {
     const size = readFit(input);
-    if (size === undefined || !own(event.sender) || win === undefined) return;
+    if (size === undefined || !own(event.sender)) return;
     corner = size.corner;
-    const bounds = win.getBounds();
-    win.setBounds(fitBox(bounds, size, workArea(bounds)));
+    void serial(async () => {
+      const at = await where();
+      if (at === undefined) return;
+      await put(fitBox(at.box, size, at.area), at.area);
+    });
   });
-  ipc.on(Channels.companionMoveBy, (event, input) => {
+  ipc.handle(Channels.companionMoveBy, async (input, event) => {
     const step = readStep(input);
-    if (step === undefined || !own(event.sender) || win === undefined) return;
-    const bounds = win.getBounds();
-    const next = within(
-      { ...bounds, x: bounds.x + step.dx, y: bounds.y + step.dy },
-      workArea(bounds),
-    );
-    win.setPosition(next.x, next.y);
+    if (step === undefined || !own(event.sender)) return;
+    await serial(async () => {
+      const at = await where();
+      if (at === undefined) return;
+      await put(
+        within({ ...at.box, x: at.box.x + step.dx, y: at.box.y + step.dy }, at.area),
+        at.area,
+      );
+    });
   });
 
   return {
     open,
     close,
-    isOpen: () => win !== undefined && !win.isDestroyed(),
+    isOpen: live,
+    /** Opens the companion again when it was open as Gram last quit. */
+    reopen: () => {
+      if (readStored(deps.storePath).openAtLastQuit) open();
+    },
   };
 }

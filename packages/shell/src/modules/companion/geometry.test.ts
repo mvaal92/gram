@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fitBox, readFit, readStep, startBox, within } from "./geometry.ts";
+import { cornerIn, fitBox, readFit, readStep, startBox, within } from "./geometry.ts";
 
 const area = { x: 0, y: 0, width: 1920, height: 1080 };
 
@@ -41,5 +41,12 @@ describe("startBox and within", () => {
       width: 64,
       height: 64,
     });
+  });
+});
+
+describe("cornerIn", () => {
+  it("names the nearest corner of the work area, so panels open toward the middle", () => {
+    expect(cornerIn({ x: 1840, y: 16, width: 64, height: 64 }, area)).toBe("top-right");
+    expect(cornerIn({ x: 10, y: 1000, width: 64, height: 64 }, area)).toBe("bottom-left");
   });
 });

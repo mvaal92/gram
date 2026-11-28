@@ -4,7 +4,7 @@ import { ArrowUp, LayoutPanelLeft } from "lucide-react";
 import { useMemo, useRef, useState, type FormEvent } from "react";
 
 import { useApi } from "@/api/context";
-import { useLayoutSync } from "@/lib/effects";
+import { useLayoutSync, useMountEffect } from "@/lib/effects";
 import { Markdown } from "@/components/ai-elements/markdown";
 import { Button } from "@/components/ui/button";
 import { useShortcutHint } from "@/keyboard/use-shortcut-hint";
@@ -27,6 +27,7 @@ import {
   lastExchange,
   latestThread,
   needsPerson,
+  ownLine,
   workerLine,
   type ActiveTool,
 } from "./companion-model";
@@ -71,7 +72,11 @@ export function CompanionShell({ windowed = false }: { windowed?: boolean }) {
   );
   const state = avatarState(target, watched);
   const asks = needsPerson(watched, needs.length);
-  const busy = workerLine(watched, threadId);
+  const busy =
+    ownLine(
+      target,
+      needs.some((item) => item.threadId !== undefined && item.threadId === threadId),
+    ) ?? workerLine(watched, threadId);
 
   useLayoutSync(() => {
     if (!windowed) return undefined;
@@ -225,6 +230,7 @@ function Say({ summary }: { summary: ThreadSummary }) {
   const api = useApi();
   const [text, setText] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  useMountEffect(() => input.current?.focus({ preventScroll: true }));
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const message = text.trim();
@@ -250,7 +256,6 @@ function Say({ summary }: { summary: ThreadSummary }) {
       <input
         id="companion-input"
         ref={input}
-        autoFocus
         autoComplete="off"
         value={text}
         onChange={(event) => setText(event.target.value)}

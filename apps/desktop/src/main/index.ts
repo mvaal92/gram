@@ -749,7 +749,7 @@ async function runApp() {
   });
   if (pagesOrigin !== undefined) pages.setOrigin(pagesOrigin);
   installTray(ipc, trayMode);
-  installCompanionWindow(ipc, WINDOW_CONTEXT, windowUrl);
+  installCompanionWindow(ipc, WINDOW_CONTEXT, windowUrl, log);
   const openModels = () =>
     openSpeechModelStore({
       dataDir,

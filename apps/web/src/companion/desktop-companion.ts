@@ -35,13 +35,13 @@ export function leaveCompanion(threadId?: string): void {
 }
 
 async function openWhenReady(app: DesktopCompanion): Promise<void> {
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < 20; attempt++) {
     try {
       await app.open();
       return;
     } catch (error) {
-      if (attempt === 4) console.error("companion: open", error);
-      await sleep(400);
+      if (attempt === 19) console.error("companion: open", error);
+      await sleep(500);
     }
   }
 }
