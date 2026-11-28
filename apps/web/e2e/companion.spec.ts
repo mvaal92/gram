@@ -94,3 +94,37 @@ test("setup links a new orchestrator, turns the companion on and keeps the link"
   await page.getByTestId("companion-avatar").click();
   await expect(page.getByLabel("Message the orchestrator")).toBeVisible();
 });
+
+test("files attach from the + button and from a drop on the icon, as chips, and send", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/t/t-flaky");
+  await expect(page.getByTestId("app-shell")).toBeVisible();
+  await page.keyboard.press("ControlOrMeta+Alt+6");
+
+  const avatar = page.getByTestId("companion-avatar");
+  const dropped = await page.evaluateHandle(() => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(["dropped"], "dropped.txt", { type: "text/plain" }));
+    return transfer;
+  });
+  await avatar.dispatchEvent("dragenter", { dataTransfer: dropped });
+  await expect(avatar).toHaveAttribute("data-file-over", "true");
+  await avatar.dispatchEvent("drop", { dataTransfer: dropped });
+  const bubble = page.getByTestId("companion-bubble");
+  await expect(bubble).toBeVisible();
+  await expect(avatar).not.toHaveAttribute("data-file-over", "true");
+  await expect(bubble.getByTestId("attachment-chip")).toHaveCount(1);
+
+  await bubble.getByTestId("companion-file-input").setInputFiles({
+    name: "picked.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("picked"),
+  });
+  const chips = bubble.getByTestId("attachment-chip");
+  await expect(chips).toHaveCount(2);
+  await expect(chips.nth(1)).toHaveAttribute("data-status", "ready");
+  await bubble.getByRole("button", { name: "Send" }).click();
+  await expect(chips).toHaveCount(0);
+});

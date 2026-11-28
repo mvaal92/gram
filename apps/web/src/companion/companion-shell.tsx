@@ -1,7 +1,7 @@
-import type { PlanItem, ThreadId, ThreadSummary, WorkspaceState } from "@gram/contracts";
+import type { PlanItem, ThreadId, ThreadSummary, UserInput, WorkspaceState } from "@gram/contracts";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { ArrowUp } from "lucide-react";
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { ArrowUp, Plus } from "lucide-react";
+import { useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
 
 import { useApi } from "@/api/context";
 import { useLayoutSync, useMountEffect, useSubscription } from "@/lib/effects";
@@ -9,6 +9,8 @@ import { Markdown } from "@/components/ai-elements/markdown";
 import { cn } from "@/lib/utils";
 import { MockCard } from "@/thread/mock-visuals";
 import { Button } from "@/components/ui/button";
+import { AttachmentChips } from "@/composer/attachment-chips";
+import { useAttachments } from "@/composer/use-attachments";
 import { answersInFull } from "@/inbox/inbox-detail";
 import type { NeedsYouItem } from "@/orchestration/needs-you-items";
 import { useNeedsYouActions } from "@/orchestration/needs-you-row";
@@ -456,46 +458,98 @@ function Say({ summary }: { summary: ThreadSummary }) {
   const api = useApi();
   const [text, setText] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const attachments = useAttachments({ threadId: summary.thread.id });
   useMountEffect(() => input.current?.focus({ preventScroll: true }));
+  const ready = attachments.ready;
+  const canSend = !attachments.uploading && (text.trim() !== "" || ready.length > 0);
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    if (!canSend) return;
     const message = text.trim();
-    if (message === "") return;
+    const sent: UserInput = {
+      text: message,
+      ...(ready.length > 0 ? { attachments: ready } : {}),
+    };
     setText("");
-    const sent =
+    attachments.clear();
+    const going =
       summary.status === "running"
-        ? api.steer(summary.thread.id, { text: message })
-        : api.send(summary.thread.id, { text: message });
-    void sent.catch((error: unknown) => {
+        ? api.steer(summary.thread.id, sent)
+        : api.send(summary.thread.id, sent);
+    void going.catch((error: unknown) => {
       console.error("companion: send", error);
       setText(message);
+      if (sent.attachments !== undefined) attachments.adopt(sent.attachments);
     });
+  };
+  const onDrop = (event: DragEvent<HTMLFormElement>) => {
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    attachments.add(event.dataTransfer.files);
   };
   return (
     <form
       onSubmit={submit}
-      className="companion-inset flex items-center gap-1.5 rounded-full py-1 pr-1 pl-3"
+      onDragOver={(event) => {
+        if (event.dataTransfer.types.includes("Files")) event.preventDefault();
+      }}
+      onDrop={onDrop}
+      className="companion-inset flex flex-col gap-1.5 rounded-xl p-1"
     >
-      <label className="sr-only" htmlFor="companion-input">
-        Message the orchestrator
-      </label>
-      <input
-        id="companion-input"
-        ref={input}
-        autoComplete="off"
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        className="min-w-0 flex-1 bg-transparent text-body outline-none placeholder:text-muted-foreground"
+      <AttachmentChips
+        items={attachments.items}
+        onRemove={attachments.remove}
+        className="px-1 pt-1"
       />
-      <Button
-        type="submit"
-        size="icon-sm"
-        className="rounded-full"
-        aria-label="Send"
-        disabled={text.trim() === ""}
-      >
-        <ArrowUp />
-      </Button>
+      <div className="flex items-center gap-1">
+        <input
+          ref={picker}
+          type="file"
+          multiple
+          hidden
+          data-testid="companion-file-input"
+          onChange={(event) => {
+            if (event.target.files !== null) attachments.add(event.target.files);
+            event.target.value = "";
+          }}
+        />
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          className="rounded-full"
+          aria-label="Attach files"
+          title="Attach files"
+          data-testid="companion-attach"
+          onClick={() => picker.current?.click()}
+        >
+          <Plus />
+        </Button>
+        <label className="sr-only" htmlFor="companion-input">
+          Message the orchestrator
+        </label>
+        <input
+          id="companion-input"
+          ref={input}
+          autoComplete="off"
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onPaste={(event) => {
+            if (attachments.add(event.clipboardData.files)) event.preventDefault();
+          }}
+          className="min-w-0 flex-1 bg-transparent text-body outline-none placeholder:text-muted-foreground"
+        />
+        <Button
+          type="submit"
+          size="icon-sm"
+          className="rounded-full"
+          aria-label="Send"
+          disabled={!canSend}
+        >
+          <ArrowUp />
+        </Button>
+      </div>
     </form>
   );
 }

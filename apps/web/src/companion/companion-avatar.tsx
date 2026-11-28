@@ -3,11 +3,13 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type DragEvent,
   type PointerEvent,
   type ReactNode,
   type RefObject,
 } from "react";
 
+import { useAttachments } from "@/composer/use-attachments";
 import { useExternalSync, useSubscription } from "@/lib/effects";
 import { useFlash } from "@/lib/timers";
 import { cn } from "@/lib/utils";
@@ -133,8 +135,10 @@ function ThreadPresence({
   const tool = own ?? busy;
   const { reply, replyId } = lastExchange(messages);
   const loaded = useThreadFeed(threadId, (s) => s.phase === "live");
+  const attachments = useAttachments({ threadId });
   return (
     <Presence
+      onFiles={(files) => attachments.add(files)}
       state={tool !== undefined && state === "idle" ? "working" : state}
       asks={asks}
       needs={needs}
@@ -260,7 +264,9 @@ function Presence({
   loaded,
   panel,
   windowed,
+  onFiles,
 }: {
+  onFiles?: (files: FileList) => boolean;
   state: AvatarState;
   asks: boolean;
   needs: readonly NeedsYouItem[];
@@ -278,6 +284,7 @@ function Presence({
   const setDock = useCompanion((s) => s.setDock);
   const drop = useDrop({ open, loaded, reply, settled, needs, tasks });
   const [hovered, setHovered] = useState(false);
+  const [fileOver, setFileOver] = useState(false);
   const anchor = useRef<HTMLDivElement>(null);
   const press = useRef<{ start: Point; offset: Point; moved: boolean } | undefined>(undefined);
   const [dragging, setDragging] = useState<Point | undefined>(undefined);
@@ -363,7 +370,31 @@ function Presence({
     setOpen(!open);
   };
 
-  const hint = tool?.label ?? (state === "error" ? "Something failed" : "Gram · nothing running");
+  const hint = fileOver
+    ? "Drop to attach"
+    : (tool?.label ?? (state === "error" ? "Something failed" : "Gram · nothing running"));
+  const files = {
+    onDragEnter: (event: DragEvent<HTMLButtonElement>) => {
+      if (onFiles === undefined || !event.dataTransfer.types.includes("Files")) return;
+      event.preventDefault();
+      setFileOver(true);
+    },
+    onDragOver: (event: DragEvent<HTMLButtonElement>) => {
+      if (onFiles === undefined || !event.dataTransfer.types.includes("Files")) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+    },
+    onDragLeave: () => setFileOver(false),
+    onDrop: (event: DragEvent<HTMLButtonElement>) => {
+      if (onFiles === undefined || !event.dataTransfer.types.includes("Files")) return;
+      event.preventDefault();
+      setFileOver(false);
+      if (onFiles(event.dataTransfer.files)) {
+        drop.dismiss();
+        setOpen(true);
+      }
+    },
+  };
   return (
     <div
       ref={anchor}
@@ -394,6 +425,8 @@ function Presence({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        fileOver={fileOver}
+        files={files}
       />
       {hovered && !open && dragging === undefined && !windowed && (
         <span
@@ -557,7 +590,16 @@ function Avatar({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  fileOver,
+  files,
 }: {
+  fileOver: boolean;
+  files: {
+    onDragEnter: (event: DragEvent<HTMLButtonElement>) => void;
+    onDragOver: (event: DragEvent<HTMLButtonElement>) => void;
+    onDragLeave: () => void;
+    onDrop: (event: DragEvent<HTMLButtonElement>) => void;
+  };
   state: AvatarState;
   asks: boolean;
   open: boolean;
@@ -578,6 +620,7 @@ function Avatar({
       data-state={state}
       data-asks={asks || undefined}
       data-lifted={lifted || undefined}
+      data-file-over={fileOver || undefined}
       data-face-motion={faceOf(PEBBLE, state, asks).motion}
       aria-expanded={open}
       title={nativeTooltip}
@@ -596,6 +639,7 @@ function Avatar({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      {...files}
       className="companion-pebble relative grid shrink-0 cursor-grab touch-none place-items-center rounded-full outline-none select-none focus-visible:focus-ring"
     >
       <span aria-hidden className="companion-mark" />
