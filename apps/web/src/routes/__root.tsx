@@ -1,7 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext } from "@tanstack/react-router";
+import { lazy, Suspense } from "react";
 
-import { CompanionShell } from "@/companion/companion-shell";
 import { useCompanion } from "@/companion/companion-store";
 import {
   desktopCompanion,
@@ -20,6 +20,10 @@ export interface RouterContext {
   queryClient: QueryClient;
 }
 
+const CompanionShell = lazy(() =>
+  import("@/companion/companion-shell").then((m) => ({ default: m.CompanionShell })),
+);
+
 export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootLayout,
 });
@@ -37,10 +41,18 @@ function RootLayout() {
       <TooltipProvider>
         <NeedsYouSource />
         {windowed ? (
-          <CompanionShell windowed />
+          <Suspense fallback={null}>
+            <CompanionShell windowed />
+          </Suspense>
         ) : (
           <>
-            {inPlace ? <CompanionShell /> : <AppShell />}
+            {inPlace ? (
+              <Suspense fallback={null}>
+                <CompanionShell />
+              </Suspense>
+            ) : (
+              <AppShell />
+            )}
             <AppOverlays />
           </>
         )}

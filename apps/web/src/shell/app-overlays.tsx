@@ -1,4 +1,6 @@
-import { CompanionSetup } from "@/companion/companion-setup";
+import { lazy, Suspense } from "react";
+
+import { useCompanion } from "@/companion/companion-store";
 import { AwayNotifications } from "@/desktop/away-notifications";
 import { HistoryView } from "@/history/history-view";
 import { InboxView } from "@/inbox/inbox-view";
@@ -16,6 +18,19 @@ import { Toasts } from "@/shell/toasts";
 import { ThreadDialogs } from "@/thread/thread-dialogs";
 import { NeedsYouShortcut } from "@/views/view-frame";
 import { WhatsNewDialog } from "@/whats-new/whats-new-dialog";
+
+const CompanionSetup = lazy(() =>
+  import("@/companion/companion-setup").then((m) => ({ default: m.CompanionSetup })),
+);
+
+function CompanionSetupWhenOpen() {
+  const open = useCompanion((s) => s.setupOpen);
+  return open ? (
+    <Suspense fallback={null}>
+      <CompanionSetup />
+    </Suspense>
+  ) : null;
+}
 
 /**
  * What opens over the shell from anywhere: the palette, dialogs, sheets, toasts and the
@@ -38,7 +53,7 @@ export function AppOverlays() {
       <ReportIssueDialog />
       <ShortcutOverlay />
       <LinkQuestion />
-      <CompanionSetup />
+      <CompanionSetupWhenOpen />
       <Toasts />
       {typeof window !== "undefined" && window.gram?.onNotificationAction !== undefined && (
         <AwayNotifications />
