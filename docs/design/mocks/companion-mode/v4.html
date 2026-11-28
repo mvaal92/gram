@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Companion: where tasks and plans live</title>
+<link rel="stylesheet" href="kit/tokens.css" />
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 24px; background: #1d2430; font: 14px/1.45 var(--font-ui); color: var(--fg); }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 28px 0 4px; }
+  p.lead { color: var(--fg-muted); margin: 0 0 12px; max-width: 70ch; }
+  .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+  .cell { display: flex; flex-direction: column; gap: 6px; }
+  .cap { font-size: 12px; color: var(--fg-subtle); }
+  .glass { background: color-mix(in oklab, var(--surface-3) 70%, transparent); backdrop-filter: blur(22px) saturate(1.8);
+    border-radius: 16px; box-shadow: inset 0 1px 0 color-mix(in oklab, var(--surface-3) 85%, var(--fg) 15%); }
+  .panel { width: 300px; padding: 10px; display: flex; flex-direction: column; gap: 8px; position: relative; }
+  .msg { font-size: 13px; }
+  .me { align-self: flex-end; max-width: 85%; font-size: 12px; color: var(--fg-muted); background: color-mix(in oklab, var(--surface-1) 60%, transparent); padding: 4px 8px; border-radius: 8px; }
+  .input { height: 30px; border-radius: 999px; background: color-mix(in oklab, var(--surface-1) 60%, transparent); }
+  .strip { height: 22px; margin: -4px -4px 0; padding: 0 8px; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-subtle); border-radius: 10px; }
+  .strip.ghost { opacity: 0; }
+  .strip.hot { background: color-mix(in oklab, var(--surface-1) 55%, transparent); color: var(--fg-muted); }
+  .dot { width: 7px; height: 7px; border-radius: 9px; display: inline-block; flex: none; }
+  .w { background: var(--accent); } .n { background: var(--status-needs-mark); } .d { background: var(--merged); } .x { background: var(--danger); } .g { background: var(--fg-subtle); }
+  .needs { color: var(--status-needs); color: #e2a33a; }
+  .overlay { position: absolute; left: 6px; right: 6px; top: 30px; padding: 8px 10px; border-radius: 12px; font-size: 12px;
+    background: color-mix(in oklab, var(--surface-2) 92%, transparent); box-shadow: 0 8px 24px rgb(0 0 0 / .35); display: flex; flex-direction: column; gap: 3px; }
+  .li { display: flex; gap: 6px; align-items: center; }
+  .li .t { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .li .e { color: var(--fg-subtle); }
+  .sub { color: var(--fg-subtle); font-size: 11px; margin-top: 4px; }
+  .faded { opacity: .35; }
+  .pebble { width: 40px; height: 40px; border-radius: 50%; background: var(--fg); display: grid; place-items: center; position: relative; }
+  .mark { width: 10px; height: 10px; border-radius: 50%; background: var(--surface-1); }
+  svg.ring { position: absolute; inset: -6px; }
+  .tip { font-size: 12px; padding: 6px 10px; border-radius: 999px; white-space: nowrap; }
+  .peek { position: absolute; left: -196px; top: 10px; width: 180px; padding: 10px; font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+</style>
+</head>
+<body>
+<h1>Companion: where tasks, steps and plans live</h1>
+<p class="lead">Content from the v7 runs. The chat keeps messages only. Each direction shows what sits on screen at rest and what appears on hover.</p>
+
+<!-- ===================== A ===================== -->
+<h2>A · Hover strip over the chat</h2>
+<p class="lead">The dropdown's top edge holds one line, but only while the pointer is over the dropdown. Hovering the line opens the full list as an overlay on the chat, so the chat never moves. With something asking, an amber line stays up at rest; nothing else does.</p>
+<div class="row" id="A">
+  <div class="cell"><div class="glass panel">
+    <div class="strip ghost">·</div>
+    <div class="me">Start one worker to append 'companion v7 ok'…</div>
+    <div class="msg">I started the worker "Append companion v7 line". It won't commit, push or open a PR.</div>
+    <div class="input"></div></div><span class="cap">At rest, one worker: nothing but the chat</span></div>
+
+  <div class="cell"><div class="glass panel">
+    <div class="strip hot"><span class="dot w"></span>1 worker · Append companion v7 line</div>
+    <div class="me">Start one worker to append 'companion v7 ok'…</div>
+    <div class="msg">I started the worker "Append companion v7 line". It won't commit, push or open a PR.</div>
+    <div class="input"></div></div><span class="cap">Pointer over the dropdown: the line appears</span></div>
+
+  <div class="cell"><div class="glass panel">
+    <div class="strip hot"><span class="dot w"></span>Step 2 of 3 · v2 step 2 · 1 worker</div>
+    <div class="msg faded">Step 1 is done and step 2 has started. Nothing is needed from you.</div>
+    <div class="msg faded">The step 1 worker reported that plan-v2.txt contains v2 step 1…</div>
+    <div class="input faded"></div>
+    <div class="overlay glass">
+      <div class="li"><span>✓</span><span class="t">v2 step 1</span></div>
+      <div class="li"><span>•</span><span class="t" style="color:var(--fg)">v2 step 2</span><span class="e">1/1</span></div>
+      <div class="li"><span>○</span><span class="t">v2 step 3</span></div>
+      <div class="sub">Tasks</div>
+      <div class="li"><span class="dot w"></span><span class="t">v2 step 2 line</span><span class="e">running</span></div>
+      <div class="li"><span class="dot d"></span><span class="t">v2 step 1 line</span><span class="e">done</span></div>
+    </div></div><span class="cap">Line hovered: the plan and tasks overlay the chat</span></div>
+
+  <div class="cell"><div class="glass panel">
+    <div class="strip hot"><span class="dot n"></span><span class="needs">Asks you</span> · What should the new file be called?</div>
+    <div class="msg">I'll ask you first, then start the worker.</div>
+    <div class="input"></div></div><span class="cap">Asks you: the amber line stays up even at rest</span></div>
+
+  <div class="cell"><div class="glass panel">
+    <div class="strip hot"><span class="dot x"></span>1 blocked · 8 done</div>
+    <div class="msg">The worker stopped as blocked, as you wanted. The input file doesn't exist…</div>
+    <div class="input"></div></div><span class="cap">Blocked, hovered (at rest: nothing; the drop already said it)</span></div>
+</div>
+
+<!-- ===================== B ===================== -->
+<h2>B · Progress ring on the icon</h2>
+<p class="lead">A thin arc around Pebble for plan progress, with a small dot per worker on the ring. Details come from hovering the icon. The ring is always visible, which breaks "nothing until hover", and it brings back an edge around the icon in the transparent window.</p>
+<div class="row" id="B">
+  <div class="cell"><div style="padding:10px"><div class="pebble"><span class="mark"></span></div></div><span class="cap">Idle</span></div>
+  <div class="cell"><div style="padding:10px"><div class="pebble"><svg class="ring" width="52" height="52"><circle cx="26" cy="26" r="24" fill="none" stroke="#ffffff22" stroke-width="2"/><circle cx="26" cy="2" r="2.5" fill="#346bf1"/></svg><span class="mark" style="border-radius:2px;background:var(--accent)"></span></div></div><span class="cap">One worker</span></div>
+  <div class="cell"><div style="padding:10px"><div class="pebble"><svg class="ring" width="52" height="52"><circle cx="26" cy="26" r="24" fill="none" stroke="#ffffff22" stroke-width="2"/><path d="M26 2 A24 24 0 0 1 46.8 38" fill="none" stroke="#346bf1" stroke-width="2"/><circle cx="46.8" cy="38" r="2.5" fill="#346bf1"/></svg><span class="mark" style="border-radius:2px;background:var(--accent)"></span></div></div><span class="cap">Step 2 of 3</span></div>
+  <div class="cell"><div style="padding:10px"><div class="pebble"><span class="mark" style="background:var(--status-needs-mark)"></span></div></div><span class="cap">Asks you</span></div>
+  <div class="cell"><div style="padding:10px;display:flex;gap:8px;align-items:center"><span class="tip glass">Step 2 of 3 · v2 step 2 · 1 worker</span><div class="pebble"><svg class="ring" width="52" height="52"><circle cx="26" cy="26" r="24" fill="none" stroke="#ffffff22" stroke-width="2"/><path d="M26 2 A24 24 0 0 1 46.8 38" fill="none" stroke="#346bf1" stroke-width="2"/></svg><span class="mark"></span></div></div><span class="cap">Hover: details in the hint</span></div>
+</div>
+
+<!-- ===================== C ===================== -->
+<h2>C · Peek sheet beside the dropdown</h2>
+<p class="lead">A slim glass sheet slides out sideways while the pointer is over the dropdown's edge. The chat stays whole, but the window has to grow sideways for it, so the companion window jumps wider on every hover.</p>
+<div class="row" id="C">
+  <div class="cell"><div style="position:relative;margin-left:200px"><div class="glass panel">
+    <div class="msg">Step 1 is done and step 2 has started. Nothing is needed from you.</div>
+    <div class="input"></div></div>
+    <div class="peek glass">
+      <div class="sub" style="margin:0">plan-v2 · 1 of 3</div>
+      <div class="li"><span>✓</span><span class="t">v2 step 1</span></div>
+      <div class="li"><span>•</span><span class="t">v2 step 2</span></div>
+      <div class="li"><span>○</span><span class="t">v2 step 3</span></div>
+      <div class="sub">Tasks</div>
+      <div class="li"><span class="dot w"></span><span class="t">v2 step 2 line</span></div>
+      <div class="li"><span class="dot d"></span><span class="t">v2 step 1 line</span></div>
+    </div></div><span class="cap" style="margin-left:200px">Hover: sheet beside the dropdown</span></div>
+</div>
+
+<h2>Pick: A</h2>
+<p class="lead">A is the only one that keeps both the chat and the icon clean at rest. It shows nothing until hover, and the amber line is its one cue. It also never resizes the window on hover, because the overlay sits inside the dropdown. B is always on and draws an edge around the icon. C makes the window jump sideways.</p>
+</body>
+</html>

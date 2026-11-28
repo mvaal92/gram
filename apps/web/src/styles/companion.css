@@ -214,3 +214,34 @@
 .companion-panel *::-webkit-scrollbar {
   display: none;
 }
+
+/* The bubble's top line: empty until the pointer is over the bubble, except an ask, which shows at
+   rest. Its overlay sits over the chat inside the bubble, so the chat and the window never move. */
+.companion-topline > * {
+  opacity: 0;
+  transition: opacity var(--dur-fast, 120ms) ease-out;
+}
+.companion-panel:hover .companion-topline > *,
+.companion-topline[data-rest] > *,
+.companion-topline[aria-expanded="true"] > *,
+.companion-topline:focus-visible > * {
+  opacity: 1;
+}
+.companion-panel:hover .companion-topline:not(:disabled):hover,
+.companion-topline[aria-expanded="true"] {
+  background: color-mix(in oklab, var(--surface-1) 55%, transparent);
+}
+.companion-peek {
+  background: var(--surface-2);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--surface-3) 85%, var(--fg) 15%),
+    0 8px 24px color-mix(in oklab, black 35%, transparent);
+}
+.companion-panel:has(.companion-peek) {
+  min-height: 22rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .companion-topline > * {
+    transition: none;
+  }
+}

@@ -549,3 +549,42 @@ export function historyOf(
     )
     .slice(-limit);
 }
+
+/** The bubble's one top line: what asks, else where the work stands, else how the tasks ended. */
+export interface TopLine {
+  readonly tone: "needs" | "working" | "stuck" | "quiet";
+  readonly text: string;
+}
+
+/**
+ * What the top line says. Only `needs` shows at rest; the rest waits for the pointer, so the chat
+ * keeps nothing but messages.
+ */
+export function topLineOf({
+  needs,
+  step,
+  plan,
+  tasks,
+}: {
+  needs: readonly { readonly title: string }[];
+  step: ActiveTool | undefined;
+  plan: CompanionPlan | undefined;
+  tasks: readonly CompanionTask[];
+}): TopLine | undefined {
+  const [first] = needs;
+  if (first !== undefined)
+    return {
+      tone: "needs",
+      text: `${needs.length === 1 ? "Asks you" : `${needs.length} ask you`} · ${first.title}`,
+    };
+  if (step !== undefined)
+    return { tone: step.waiting === true ? "needs" : "working", text: step.label };
+  const where = planHint(plan);
+  if (where !== undefined) return { tone: "working", text: where };
+  const counts = tasksLine(tasks);
+  if (counts === undefined) return undefined;
+  return {
+    tone: tasks.some((task) => task.phase === "failed") ? "stuck" : "quiet",
+    text: counts,
+  };
+}

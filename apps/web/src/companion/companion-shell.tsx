@@ -38,6 +38,7 @@ import {
   tasksLine,
   tasksOf,
   threadPlanOf,
+  topLineOf,
   workersLine,
   type ActiveTool,
   type CompanionPlan,
@@ -198,18 +199,20 @@ function Bubble({
     <section
       data-testid="companion-bubble"
       aria-label="Gram companion"
-      className="companion-glass companion-panel flex max-h-[min(36rem,calc(100dvh-6rem))] w-85 max-w-full flex-col gap-2.5 p-3"
+      className="companion-glass companion-panel relative flex max-h-[min(36rem,calc(100dvh-6rem))] w-85 max-w-full flex-col gap-2 p-3 pt-1.5"
     >
+      <Peek
+        threadId={target?.thread.id}
+        needs={needs}
+        hosts={hosts}
+        tasks={tasks}
+        plan={plan}
+        busy={busy}
+        onOpen={openFull}
+      />
       <div className="flex min-h-0 flex-col gap-2 overflow-y-auto">
-        {needs.slice(0, 2).map((item) => (
-          <NeedsCard key={item.key} item={item} onOpen={openFull} />
-        ))}
-        {hosts.map((summary) => (
-          <HostCard key={summary.thread.id} summary={summary} onOpen={openFull} />
-        ))}
-        <Tasks tasks={tasks} onOpen={openFull} />
         {target !== undefined ? (
-          <Exchange summary={target} plan={plan} busy={busy} />
+          <Exchange summary={target} />
         ) : workspace !== undefined ? (
           <div className="flex flex-col items-start gap-2 text-body text-muted-foreground">
             <span>No orchestrator runs in {workspace.workspace.name} yet.</span>
@@ -225,6 +228,99 @@ function Bubble({
       </div>
       {target !== undefined && <Say summary={target} />}
     </section>
+  );
+}
+
+const TOP_DOT = { needs: "needs", working: "working", stuck: "error", quiet: "idle" } as const;
+
+function Peek(props: Omit<PeekProps, "own" | "todos"> & { threadId: ThreadId | undefined }) {
+  const { threadId, ...rest } = props;
+  return threadId === undefined ? (
+    <PeekView {...rest} own={undefined} todos={undefined} />
+  ) : (
+    <ThreadPeek threadId={threadId} {...rest} />
+  );
+}
+
+function ThreadPeek({
+  threadId,
+  ...rest
+}: Omit<PeekProps, "own" | "todos"> & { threadId: ThreadId }) {
+  const messages = useThreadFeed(threadId, (s) => s.messages);
+  const todos = useThreadsStore((s) => s.plans[threadId]);
+  return <PeekView {...rest} own={activeTool(messages)} todos={todos} />;
+}
+
+interface PeekProps {
+  needs: readonly NeedsYouItem[];
+  hosts: readonly ThreadSummary[];
+  tasks: readonly CompanionTask[];
+  plan: CompanionPlan | undefined;
+  todos: readonly PlanItem[] | undefined;
+  busy: ActiveTool | undefined;
+  own: ActiveTool | undefined;
+  onOpen: (threadId?: ThreadId) => void;
+}
+
+function PeekView({ needs, hosts, tasks, plan, todos, busy, own, onOpen }: PeekProps) {
+  const line = topLineOf({ needs, step: own ?? busy, plan, tasks });
+  const [open, setOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const shown = open || pinned;
+  const hasMore =
+    needs.length > 0 ||
+    hosts.length > 0 ||
+    tasks.length > 0 ||
+    plan !== undefined ||
+    (todos?.length ?? 0) > 0;
+  return (
+    <div
+      className="contents"
+      onPointerEnter={() => setOpen(true)}
+      onPointerLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        data-testid="companion-topline"
+        data-tone={line?.tone}
+        data-rest={line?.tone === "needs" || undefined}
+        aria-expanded={shown}
+        aria-label={line === undefined ? "Nothing running" : line.text}
+        disabled={line === undefined && !hasMore}
+        onWheel={() => setOpen(true)}
+        onClick={() => setPinned(!pinned)}
+        className="companion-topline flex h-6 min-w-0 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-left text-meta text-muted-foreground outline-none focus-visible:focus-ring"
+      >
+        {line !== undefined && (
+          <>
+            <StatusDot state={TOP_DOT[line.tone]} still={line.tone !== "working"} />
+            <span
+              className={cn(
+                "min-w-0 flex-1 truncate",
+                line.tone === "needs" && "text-status-needs",
+              )}
+            >
+              {line.text}
+            </span>
+          </>
+        )}
+      </button>
+      {shown && hasMore && (
+        <div
+          data-testid="companion-peek"
+          className="companion-peek absolute inset-x-2 top-8 z-10 flex max-h-[calc(100%-2.5rem)] flex-col gap-2 overflow-y-auto overscroll-contain rounded-xl p-2.5"
+        >
+          {needs.slice(0, 2).map((item) => (
+            <NeedsCard key={item.key} item={item} onOpen={onOpen} />
+          ))}
+          <PlanList plan={plan} todos={todos} />
+          <Tasks tasks={tasks} onOpen={onOpen} />
+          {hosts.map((summary) => (
+            <HostCard key={summary.thread.id} summary={summary} onOpen={onOpen} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -361,21 +457,11 @@ function PlanList({
   );
 }
 
-function Exchange({
-  summary,
-  plan: kept,
-  busy,
-}: {
-  summary: ThreadSummary;
-  plan: CompanionPlan | undefined;
-  busy: ActiveTool | undefined;
-}) {
+function Exchange({ summary }: { summary: ThreadSummary }) {
   const threadId = summary.thread.id;
   const messages = useThreadFeed(threadId, (s) => s.messages);
-  const plan = useThreadsStore((s) => s.plans[threadId]);
   const history = historyOf(messages);
   const lastReply = history.findLast((message) => message.role === "assistant");
-  const step = activeTool(messages) ?? busy;
   const [expanded, setExpanded] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
@@ -440,16 +526,6 @@ function Exchange({
           ),
         )}
       </div>
-      <PlanList plan={kept} todos={plan} />
-      {step !== undefined && (
-        <div
-          data-testid="companion-step"
-          className="flex min-w-0 items-center gap-1.5 font-mono text-meta text-muted-foreground"
-        >
-          <StatusDot state={step.waiting === true ? "needs" : "working"} still />
-          <span className="truncate">{step.label}</span>
-        </div>
-      )}
     </>
   );
 }

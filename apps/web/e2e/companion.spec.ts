@@ -128,3 +128,31 @@ test("files attach from the + button and from a drop on the icon, as chips, and 
   await bubble.getByRole("button", { name: "Send" }).click();
   await expect(chips).toHaveCount(0);
 });
+
+test("the chat holds only messages; tasks and the plan open over it from the top line", async ({
+  page,
+}) => {
+  await page.addInitScript(() => sessionStorage.setItem("gram.mock.orchestration", "realistic"));
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  await expect(page.getByTestId("app-shell")).toBeVisible();
+  await page.keyboard.press("ControlOrMeta+Alt+6");
+  await page.getByTestId("companion-avatar").click();
+  const bubble = page.getByTestId("companion-bubble");
+  await expect(bubble).toBeVisible();
+  await expect(bubble.getByTestId("companion-history")).toBeVisible();
+  await expect(bubble.getByTestId("companion-task")).toHaveCount(0);
+  await expect(bubble.getByTestId("companion-peek")).toHaveCount(0);
+
+  const line = bubble.getByTestId("companion-topline");
+  await line.hover();
+  const peek = bubble.getByTestId("companion-peek");
+  await expect(peek).toBeVisible();
+  const history = await bubble.getByTestId("companion-history").boundingBox();
+  await expect(peek.getByTestId("companion-task").first()).toBeVisible();
+  expect(await bubble.getByTestId("companion-history").boundingBox()).toEqual(history);
+
+  await peek.getByTestId("companion-task").first().click();
+  await expect(page.getByTestId("app-shell")).toBeVisible();
+  await expect(page).toHaveURL(/\/t\//);
+});
