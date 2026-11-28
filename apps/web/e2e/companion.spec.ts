@@ -299,9 +299,7 @@ test("the chat resizes from its free corner, keeps the size after a reload, and 
   await page.getByTestId("companion-avatar").click();
   const bubble = page.getByTestId("companion-bubble");
   await expect(bubble).toBeVisible();
-  await bubble.evaluate((element) =>
-    Promise.all(element.getAnimations().map((each) => each.finished)),
-  );
+  await settled(bubble);
   const before = (await bubble.boundingBox())!;
   const handle = bubble.getByTestId("companion-resize");
   await handle.hover();
@@ -319,9 +317,7 @@ test("the chat resizes from its free corner, keeps the size after a reload, and 
   await page.reload();
   await page.getByTestId("companion-avatar").click();
   await expect(bubble).toBeVisible();
-  await bubble.evaluate((element) =>
-    Promise.all(element.getAnimations().map((each) => each.finished)),
-  );
+  await settled(bubble);
   const kept = (await bubble.boundingBox())!;
   expect(Math.abs(kept.width - after.width)).toBeLessThan(2);
   expect(Math.abs(kept.height - after.height)).toBeLessThan(2);
