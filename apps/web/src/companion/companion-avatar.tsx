@@ -16,7 +16,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { useShortcutHint } from "@/keyboard/use-shortcut-hint";
-import { useSubscription } from "@/lib/effects";
+import { useExternalSync, useSubscription } from "@/lib/effects";
 import { useFlash } from "@/lib/timers";
 import { cn } from "@/lib/utils";
 import type { NeedsYouItem } from "@/orchestration/needs-you-items";
@@ -24,9 +24,11 @@ import { useThreadFeed } from "@/stores/feeds";
 
 import {
   activeTool,
-  excerpt,
   lastExchange,
+  noticeDrops,
   type ActiveTool,
+  type Drop,
+  type DropSeen,
   type AvatarState,
 } from "./companion-model";
 import {
@@ -50,12 +52,6 @@ const STATE_WORDS: Record<AvatarState, string> = {
 };
 
 const DROP_MS = 9000;
-
-interface Drop {
-  readonly key: string;
-  readonly tone: "reply" | "needs";
-  readonly text: string;
-}
 
 /**
  * The companion's icon where the person put it, with what it shows on its own: a hint naming the
@@ -164,18 +160,19 @@ const cornerStyle = ({ vertical, horizontal }: Placement): CSSProperties => ({
   ...(horizontal === "end" ? { right: WINDOW_INSET } : { left: WINDOW_INSET }),
 });
 
-function screenPlacement(): Placement {
-  const { availLeft, availTop, availWidth, availHeight } = window.screen as Screen & {
-    availLeft?: number;
-    availTop?: number;
-  };
-  const x = window.screenX + window.innerWidth / 2 - (availLeft ?? 0);
-  const y = window.screenY + window.innerHeight / 2 - (availTop ?? 0);
-  return {
-    vertical: y > availHeight / 2 ? "above" : "below",
-    horizontal: x > availWidth / 2 ? "end" : "start",
-  };
-}
+const placementAt = (corner: CompanionCorner): Placement => ({
+  vertical: corner.startsWith("top") ? "below" : "above",
+  horizontal: corner.endsWith("right") ? "end" : "start",
+});
+
+const findPlacement = (windowed: boolean, found: (placement: Placement) => void): void => {
+  const bridge = windowed ? desktopCompanion() : undefined;
+  if (bridge === undefined) return;
+  void bridge.placement().then(
+    (corner) => found(placementAt(corner)),
+    (error: unknown) => console.error("companion: placement", error),
+  );
+};
 
 const cornerOf = ({ vertical, horizontal }: Placement): CompanionCorner =>
   `${vertical === "below" ? "top" : "bottom"}-${horizontal === "end" ? "right" : "left"}`;
@@ -195,6 +192,7 @@ function useWindowFit(
       return undefined;
     }
     const fit = () => {
+      window.scrollTo(0, 0);
       let left = Number.POSITIVE_INFINITY;
       let top = Number.POSITIVE_INFINITY;
       let right = Number.NEGATIVE_INFINITY;
@@ -263,15 +261,19 @@ function Presence({
   const press = useRef<{ start: Point; offset: Point; moved: boolean } | undefined>(undefined);
   const [dragging, setDragging] = useState<Point | undefined>(undefined);
   const dragged = useRef(false);
-  const [onScreen, setOnScreen] = useState<Placement>(screenPlacement);
+  const [onScreen, setOnScreen] = useState<Placement>(() => placementAt("top-right"));
   const placement = windowed ? onScreen : placementOf(dock);
-  const screenPress = useRef<Point | undefined>(undefined);
-  useWindowFit(windowed, anchor, placement, !open && drop.shown === undefined && !hovered);
+  const moving = useRef(false);
+  const resting = !open && drop.shown === undefined && (windowed || !hovered);
+  const findPlace = () => findPlacement(windowed, setOnScreen);
+  useExternalSync(() => {
+    if (!resting) findPlacement(windowed, setOnScreen);
+  }, [resting, windowed]);
+  useWindowFit(windowed, anchor, placement, resting);
 
   const area = () => anchor.current?.parentElement?.getBoundingClientRect();
   const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return;
-    screenPress.current = { x: event.screenX, y: event.screenY };
     const box = anchor.current?.getBoundingClientRect();
     if (box === undefined) return;
     press.current = {
@@ -290,10 +292,15 @@ function Presence({
     if (!held.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
     held.moved = true;
     if (windowed) {
-      const last = screenPress.current;
-      if (last === undefined) return;
-      screenPress.current = { x: event.screenX, y: event.screenY };
-      desktopCompanion()?.moveBy({ dx: event.screenX - last.x, dy: event.screenY - last.y });
+      const bridge = desktopCompanion();
+      if (bridge === undefined || moving.current) return;
+      moving.current = true;
+      void bridge
+        .moveBy({ dx, dy })
+        .catch((error: unknown) => console.error("companion: move", error))
+        .finally(() => {
+          moving.current = false;
+        });
       return;
     }
     setDragging({
@@ -314,7 +321,7 @@ function Presence({
     if (held?.moved !== true) return;
     dragged.current = true;
     if (windowed) {
-      setOnScreen(screenPlacement());
+      findPlace();
       return;
     }
     if (dragging !== undefined && bounds !== undefined) setDock(snapDock(dragging, bounds));
@@ -354,13 +361,14 @@ function Presence({
         open={open}
         lifted={dragging !== undefined}
         label={tool?.label}
+        nativeTooltip={windowed ? hint : undefined}
         onClick={onClick}
         onHover={setHovered}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       />
-      {hovered && !open && dragging === undefined && (
+      {hovered && !open && dragging === undefined && !windowed && (
         <span
           role="tooltip"
           data-testid="companion-hint"
@@ -415,21 +423,36 @@ function useDrop(
   needs: readonly NeedsYouItem[],
 ) {
   const keys = needs.map((item) => item.key).join("\n");
-  const [seen, setSeen] = useState({ reply, keys, loaded });
-  const [drop, flash] = useFlash<Drop>(DROP_MS);
-  const [dismissed, setDismissed] = useState<string | undefined>(undefined);
-  if (seen.reply !== reply || seen.keys !== keys || seen.loaded !== loaded) {
-    const known = new Set(seen.keys.split("\n"));
-    const fresh = needs.find((item) => !known.has(item.key));
-    setSeen({ reply, keys, loaded });
-    const speaks = seen.loaded && !open;
-    if (speaks && fresh !== undefined)
-      flash({ key: fresh.key, tone: "needs", text: excerpt(fresh.title, 90) });
-    else if (speaks && reply !== undefined && reply !== seen.reply)
-      flash({ key: `reply:${reply.slice(0, 24)}`, tone: "reply", text: excerpt(reply, 160) });
+  const [seen, setSeen] = useState<DropSeen>(() => ({
+    reply,
+    keys: needs.map((item) => item.key),
+    loaded,
+    count: 0,
+  }));
+  const [ask, setAsk] = useState<Drop | undefined>(undefined);
+  const [replied, flash] = useFlash<Drop>(DROP_MS);
+  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
+  if (seen.reply !== reply || seen.keys.join("\n") !== keys || seen.loaded !== loaded) {
+    const noticed = noticeDrops(seen, { reply, needs, loaded, open });
+    setSeen(noticed.seen);
+    if (noticed.ask !== undefined) setAsk(noticed.ask);
+    if (noticed.reply !== undefined) flash(noticed.reply);
   }
-  const shown = open || drop === undefined || drop.key === dismissed ? undefined : drop;
-  return { shown, dismiss: () => setDismissed(drop?.key) };
+  const askStands =
+    ask !== undefined && !dismissed.has(ask.key) && needs.some((item) => item.key === ask.key);
+  const shown = open
+    ? undefined
+    : askStands
+      ? ask
+      : replied !== undefined && !dismissed.has(replied.key)
+        ? replied
+        : undefined;
+  return {
+    shown,
+    dismiss: () => {
+      if (shown !== undefined) setDismissed((before) => new Set(before).add(shown.key));
+    },
+  };
 }
 
 function Avatar({
@@ -438,6 +461,7 @@ function Avatar({
   open,
   lifted,
   label,
+  nativeTooltip,
   onClick,
   onHover,
   onPointerDown,
@@ -449,6 +473,7 @@ function Avatar({
   open: boolean;
   lifted: boolean;
   label: string | undefined;
+  nativeTooltip: string | undefined;
   onClick: () => void;
   onHover: (hovered: boolean) => void;
   onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
@@ -468,6 +493,7 @@ function Avatar({
             data-lifted={lifted || undefined}
             data-face-motion={faceOf(PEBBLE, state, asks).motion}
             aria-expanded={open}
+            title={nativeTooltip}
             aria-label={`${label ?? STATE_WORDS[state]}${asks ? ", something needs you" : ""}. ${open ? "Close" : "Open"} the companion`}
             onClick={onClick}
             onPointerEnter={() => onHover(true)}

@@ -150,3 +150,79 @@ export const excerpt = (text: string, max: number): string => {
   const space = cut.lastIndexOf(" ");
   return `${(space > max * 0.6 ? cut.slice(0, space) : cut).trimEnd()}…`;
 };
+
+/**
+ * What the companion's own thread is doing in words, for when no tool call names it: waiting on
+ * the person, the server's live activity line, or just working.
+ */
+export function ownLine(
+  summary: Pick<ThreadSummary, "status" | "activity" | "pendingRequests"> | undefined,
+  somethingHereNeedsYou = false,
+): ActiveTool | undefined {
+  if (summary === undefined) return undefined;
+  if (
+    somethingHereNeedsYou ||
+    summary.status === "needsApproval" ||
+    summary.status === "needsInput" ||
+    summary.pendingRequests.length > 0
+  )
+    return { kind: "other", label: "Waiting for you" };
+  if (summary.activity !== undefined && summary.activity.trim() !== "")
+    return { kind: "other", label: summary.activity };
+  if (summary.status === "running" || summary.status === "starting")
+    return { kind: "other", label: "Working…" };
+  return undefined;
+}
+
+/** What drops out of the icon while the dropdown is closed: a new ask, or a new reply. */
+export interface Drop {
+  readonly key: string;
+  readonly tone: "reply" | "needs";
+  readonly text: string;
+}
+
+/** What the drops have already noticed, so only something new speaks. */
+export interface DropSeen {
+  readonly reply: string | undefined;
+  readonly keys: readonly string[];
+  /** The thread's messages were in, so a reply that changes now is new rather than loaded. */
+  readonly loaded: boolean;
+  /** Replies dropped so far, which keeps each reply's drop its own even when two read alike. */
+  readonly count: number;
+}
+
+/**
+ * What changed since `seen`: a new ask drops out ahead of a new reply, and nothing does while
+ * the dropdown is open or before the thread's messages are in.
+ */
+export function noticeDrops(
+  seen: DropSeen,
+  now: {
+    readonly reply: string | undefined;
+    readonly needs: readonly { readonly key: string; readonly title: string }[];
+    readonly loaded: boolean;
+    readonly open: boolean;
+  },
+): { readonly seen: DropSeen; readonly ask?: Drop; readonly reply?: Drop } {
+  const keys = now.needs.map((item) => item.key);
+  const speaks = seen.loaded && !now.open;
+  const fresh = now.needs.find((item) => !seen.keys.includes(item.key));
+  const ask: Drop | undefined =
+    speaks && fresh !== undefined
+      ? { key: fresh.key, tone: "needs", text: excerpt(fresh.title, 90) }
+      : undefined;
+  const reply: Drop | undefined =
+    speaks && ask === undefined && now.reply !== undefined && now.reply !== seen.reply
+      ? { key: `reply:${seen.count + 1}`, tone: "reply", text: excerpt(now.reply, 160) }
+      : undefined;
+  return {
+    seen: {
+      reply: now.reply,
+      keys,
+      loaded: now.loaded,
+      count: seen.count + (reply === undefined ? 0 : 1),
+    },
+    ...(ask === undefined ? {} : { ask }),
+    ...(reply === undefined ? {} : { reply }),
+  };
+}

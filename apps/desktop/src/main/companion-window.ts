@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 
 import { app, BrowserWindow, type Rectangle } from "electron";
 
@@ -6,6 +7,17 @@ import type { WindowContext } from "@gram/shell/electron";
 import { installCompanion } from "@gram/shell/modules/companion";
 import type { ShellIpc } from "@gram/shell/modules/ipc";
 import { COMPANION_ARG } from "@gram/shell/preload";
+
+async function urlOnceServerAnswers(appUrl: () => string | undefined): Promise<string> {
+  for (;;) {
+    const url = appUrl();
+    if (url !== undefined) return url;
+    await sleep(250);
+  }
+}
+
+/** The companion window's title, which window manager rules match it by. */
+export const TITLE = "Gram companion";
 
 /**
  * Companion mode's own window: small, frameless, transparent and above other windows, loading the
@@ -16,11 +28,12 @@ export function installCompanionWindow(
   ipc: ShellIpc,
   context: WindowContext,
   appUrl: () => string | undefined,
+  log: { warn(details: object, message: string): void },
 ): void {
   const create = (bounds: Rectangle): BrowserWindow => {
     const win = new BrowserWindow({
       ...bounds,
-      title: "Gram companion",
+      title: TITLE,
       frame: false,
       transparent: true,
       backgroundColor: "#00000000",
@@ -56,9 +69,16 @@ export function installCompanionWindow(
       event.preventDefault();
       void context.openLink(target, win);
     });
-    const url = appUrl();
-    if (url !== undefined) void win.loadURL(`${new URL(url).origin}/?surface=companion`);
+    void urlOnceServerAnswers(appUrl).then((url) => {
+      if (!win.isDestroyed()) void win.loadURL(`${new URL(url).origin}/?surface=companion`);
+    });
     return win;
   };
-  installCompanion(ipc, { create, storePath: join(app.getPath("userData"), "companion.json") });
+  const companion = installCompanion(ipc, {
+    create,
+    title: TITLE,
+    storePath: join(app.getPath("userData"), "companion.json"),
+    log: (message, error) => log.warn({ err: error }, message),
+  });
+  void urlOnceServerAnswers(appUrl).then(() => companion.reopen());
 }

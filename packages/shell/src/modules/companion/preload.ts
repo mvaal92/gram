@@ -16,7 +16,8 @@ export const companionPreload = (
     open: () => ipc.invoke(Channels.companionOpen),
     close: () => ipc.invoke(Channels.companionClose),
     fit: (size) => ipc.send(Channels.companionFit, size),
-    moveBy: (delta) => ipc.send(Channels.companionMoveBy, delta),
+    moveBy: (delta) => ipc.invoke(Channels.companionMoveBy, delta),
+    placement: () => ipc.invoke(Channels.companionPlacement),
     onClosed: (callback) => ipc.subscribe<void>(Channels.companionClosed, () => callback()),
   },
 });

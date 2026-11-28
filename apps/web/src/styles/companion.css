@@ -17,6 +17,7 @@
 :root[data-companion-window] body,
 :root[data-companion-window] #root {
   background: transparent;
+  overflow: hidden;
 }
 :root[data-companion-window][data-look] body {
   background: transparent;

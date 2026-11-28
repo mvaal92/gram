@@ -510,7 +510,12 @@ export interface DesktopCompanion {
     readonly corner: CompanionCorner;
   }): void;
   /** Moves the companion window by a drag's step, kept on the display it is on. */
-  moveBy(delta: { readonly dx: number; readonly dy: number }): void;
+  moveBy(delta: { readonly dx: number; readonly dy: number }): Promise<void>;
+  /**
+   * The corner of its display the companion window sits nearest, where its icon goes, so what
+   * opens beside it grows toward the middle of the screen.
+   */
+  placement(): Promise<CompanionCorner>;
   /** Called in the app's windows when the companion window closed, by `close` or otherwise. */
   onClosed(callback: () => void): () => void;
 }
