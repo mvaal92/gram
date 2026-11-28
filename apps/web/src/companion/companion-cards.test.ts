@@ -36,4 +36,26 @@ describe("sharedIn", () => {
     expect(shared.map((each) => each.kind)).toEqual(["mock", "doc", "preview"]);
     expect(shared[2]).toEqual({ kind: "preview", url: "http://localhost:5173/" });
   });
+
+  it("shows a drawing and a stored tool image as pictures, and skips an image nothing stored", () => {
+    const shared = sharedIn(
+      message([
+        { type: "data-widget", id: "w", data: { id: "w", title: "Settings card", svg: "<svg/>" } },
+        {
+          type: "data-tool-image",
+          id: "i1",
+          data: { toolCallId: "5", mediaType: "image/png", size: 10, path: "/tmp/shots/card.png" },
+        },
+        {
+          type: "data-tool-image",
+          id: "i2",
+          data: { toolCallId: "6", mediaType: "image/png", size: 10 },
+        },
+      ]),
+    );
+    expect(shared).toEqual([
+      { kind: "picture", title: "Settings card", picture: { svg: "<svg/>" } },
+      { kind: "picture", title: "card.png", picture: { path: "/tmp/shots/card.png" } },
+    ]);
+  });
 });

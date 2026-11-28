@@ -141,13 +141,19 @@ function Decision({
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
         <h2 data-testid="companion-decide-title" className="font-heading text-title text-pretty">
-          {approval && item.command !== undefined ? "Run this command?" : (ask?.lead ?? item.title)}
+          {approval && item.command !== undefined ? (
+            "Run this command?"
+          ) : (
+            <WithCode text={ask?.lead ?? item.title} />
+          )}
         </h2>
         {ask?.context !== undefined && ask.context !== "" && (
           <p className="text-meta text-subtle">{ask.context}</p>
         )}
         {ask?.description !== undefined && (
-          <p className="text-reading leading-relaxed text-muted-foreground">{ask.description}</p>
+          <p className="text-reading leading-relaxed text-muted-foreground">
+            <WithCode text={ask.description} />
+          </p>
         )}
       </div>
       {item.command !== undefined && (
@@ -310,9 +316,26 @@ function Words({
         onChange={(event) => setText(event.target.value)}
         className="companion-inset resize-none rounded-xl px-3 py-2 text-body outline-none"
       />
-      <Button type="submit" variant="outline" className="self-end" disabled={text.trim() === ""}>
+      <Button
+        type="submit"
+        variant={text.trim() === "" ? "outline" : "default"}
+        className="self-end"
+        disabled={text.trim() === ""}
+      >
         Send answer
       </Button>
     </form>
+  );
+}
+
+function WithCode({ text }: { text: string }) {
+  return text.split("`").map((part, index) =>
+    index % 2 === 1 && index < text.split("`").length - 1 ? (
+      <code key={index} className="rounded-sm bg-surface-2 px-1 font-mono">
+        {part}
+      </code>
+    ) : (
+      <span key={index}>{index % 2 === 1 ? `\`${part}` : part}</span>
+    ),
   );
 }

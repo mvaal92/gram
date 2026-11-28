@@ -10,7 +10,7 @@ import {
 
 import { useAttachments } from "@/composer/use-attachments";
 import { useExternalSync, useLatest, useSubscription } from "@/lib/effects";
-import { useFlash } from "@/lib/timers";
+import { useDebounced, useFlash } from "@/lib/timers";
 import { cn } from "@/lib/utils";
 import type { NeedsYouItem } from "@/orchestration/needs-you-items";
 import { useThreadFeed } from "@/stores/feeds";
@@ -52,6 +52,7 @@ const STATE_WORDS: Record<AvatarState, string> = {
 };
 
 const DROP_MS = 9000;
+const HINT_DWELL_MS = 600;
 
 /**
  * The companion's icon where the person put it, with what it shows on its own: a hint naming the
@@ -212,10 +213,17 @@ function Presence({
   const setDock = useCompanion((s) => s.setDock);
   const drop = useDrop({ open, loaded, reply, settled, needs, tasks });
   const [hovered, setHovered] = useState(false);
+  const [pressedSinceEnter, setPressedSinceEnter] = useState(false);
+  const dwelt = useDebounced(hovered, hovered ? HINT_DWELL_MS : 0);
   const [fileOver, setFileOver] = useState(false);
+  const onHover = (over: boolean) => {
+    setHovered(over);
+    if (!over) setPressedSinceEnter(false);
+  };
   const dismissed = useCompanion((s) => s.dismissed);
   const shownTasks = openTasks(tasks ?? [], dismissed);
   const stuck = shownTasks.filter((task) => task.phase === "failed").length;
+  const asking = Math.max(needs.length, shownTasks.filter((task) => task.phase === "needs").length);
   const anchor = useRef<HTMLDivElement>(null);
   const press = useRef<{ start: Point; offset: Point; moved: boolean } | undefined>(undefined);
   const [dragging, setDragging] = useState<Point | undefined>(undefined);
@@ -228,7 +236,12 @@ function Presence({
   };
   const placement = windowed ? onScreen : placementOf(dock);
   const moving = useRef(false);
-  const resting = !open && !customizing && drop.shown === undefined && (windowed || !hovered);
+  const hinting =
+    (windowed ? hovered && dwelt && !pressedSinceEnter : hovered) &&
+    !open &&
+    !customizing &&
+    drop.shown === undefined;
+  const resting = !open && !customizing && drop.shown === undefined && !hinting;
   if (resting && placed) setPlaced(false);
   const findPlace = () => findPlacement(windowed, setOnScreen);
   useExternalSync(() => {
@@ -238,6 +251,7 @@ function Presence({
 
   const area = () => anchor.current?.parentElement?.getBoundingClientRect();
   const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    setPressedSinceEnter(true);
     if (event.button !== 0) return;
     const box = anchor.current?.getBoundingClientRect();
     if (box === undefined) return;
@@ -316,6 +330,16 @@ function Presence({
     }
     endPress();
   };
+  useSubscription(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const companion = useCompanion.getState();
+      if (companion.sheet !== undefined) companion.showSheet(undefined);
+      else if (companion.open) companion.setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const ending = useLatest(endPress);
   useSubscription(() => {
     const end = () => ending.current();
@@ -389,18 +413,17 @@ function Presence({
       }}
     >
       {windowed && <span aria-hidden className="companion-grip" />}
-      {(needs.length > 0 || stuck > 0) && (
+      {(asking > 0 || stuck > 0) && (
         <span
           aria-hidden
           data-testid="companion-count"
-          data-tone={needs.length > 0 ? "needs" : "stuck"}
+          data-tone={asking > 0 ? "needs" : "stuck"}
           className={cn(
             "companion-count pointer-events-none absolute -top-1 -right-1 z-10 grid h-4.5 min-w-4.5 place-items-center rounded-full px-1 font-mono text-meta leading-none font-semibold",
-            needs.length > 0 ? "text-status-needs" : "text-muted-foreground",
           )}
         >
-          {Math.min(needs.length > 0 ? needs.length : stuck, 9)}
-          {(needs.length > 0 ? needs.length : stuck) > 9 ? "+" : ""}
+          {Math.min(asking > 0 ? asking : stuck, 9)}
+          {(asking > 0 ? asking : stuck) > 9 ? "+" : ""}
         </span>
       )}
       <Avatar
@@ -409,9 +432,8 @@ function Presence({
         open={open}
         lifted={dragging !== undefined}
         label={tool?.label}
-        nativeTooltip={windowed ? hint : undefined}
         onClick={onClick}
-        onHover={setHovered}
+        onHover={onHover}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -419,7 +441,7 @@ function Presence({
         fileOver={fileOver}
         files={files}
       />
-      {hovered && !open && !customizing && dragging === undefined && !windowed && (
+      {hinting && dragging === undefined && (
         <span
           role="tooltip"
           data-testid="companion-hint"
@@ -582,7 +604,6 @@ function Avatar({
   open,
   lifted,
   label,
-  nativeTooltip,
   onClick,
   onHover,
   onPointerDown,
@@ -604,7 +625,6 @@ function Avatar({
   open: boolean;
   lifted: boolean;
   label: string | undefined;
-  nativeTooltip: string | undefined;
   onClick: () => void;
   onHover: (hovered: boolean) => void;
   onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
@@ -625,7 +645,6 @@ function Avatar({
       data-face-motion={faceOf(PEBBLE, state, asks).motion}
       data-mark={faceOf(PEBBLE, state, asks).mark.shape}
       aria-expanded={open}
-      title={nativeTooltip}
       aria-label={`${label ?? STATE_WORDS[state]}${asks ? ", something needs you" : ""}. ${open ? "Close" : "Open"} the companion`}
       onClick={onClick}
       onDoubleClick={() => leaveCompanion()}

@@ -14,6 +14,13 @@ export type CompanionSheet =
     }
   | { readonly kind: "mock"; readonly threadId: ThreadId; readonly mock: MockCardData }
   | { readonly kind: "decide"; readonly start?: string }
+  | { readonly kind: "task"; readonly threadId: ThreadId; readonly title: string }
+  | {
+      readonly kind: "picture";
+      readonly threadId: ThreadId;
+      readonly title: string;
+      readonly picture: Picture;
+    }
   | {
       readonly kind: "choices";
       readonly threadId: ThreadId;
@@ -21,6 +28,9 @@ export type CompanionSheet =
       readonly askKey: string;
       readonly options: readonly QuestionChoice[];
     };
+
+/** A picture the agent showed: a drawing (`show_widget`), or an image a tool returned, by its path. */
+export type Picture = { readonly svg: string } | { readonly path: string };
 
 /** A surface the person sized by its free corner, in CSS pixels. */
 export interface SurfaceSize {
@@ -178,6 +188,10 @@ export const useCompanion = create<CompanionState>()(
     },
   ),
 );
+
+/** A task's own sheet, where it stands and what it said last, without leaving the companion. */
+export const openTask = (task: { readonly id: ThreadId; readonly title: string }): void =>
+  useCompanion.getState().showSheet({ kind: "task", threadId: task.id, title: task.title });
 
 const onStorage = (event: StorageEvent) => {
   if (event.key === "gram.companion") void useCompanion.persist.rehydrate();

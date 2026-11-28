@@ -393,7 +393,7 @@ export function tasksLine(tasks: readonly CompanionTask[]): string | undefined {
     ).length;
   const parts = (
     [
-      ["needs", "asks you"],
+      ["needs", "ask"],
       ["doing", "running"],
       ["blocked", "blocked"],
       ["failed", "failed"],
@@ -401,7 +401,7 @@ export function tasksLine(tasks: readonly CompanionTask[]): string | undefined {
   )
     .map(([phase, words]) => ({ n: count(phase), words }))
     .filter(({ n }) => n > 0)
-    .map(({ n, words }) => `${n} ${words}`);
+    .map(({ n, words }) => `${n} ${words === "ask" && n > 1 ? "asks" : words}`);
   return parts.length === 0 ? undefined : parts.join(" · ");
 }
 
@@ -554,9 +554,16 @@ export function historyOf(
   return messages
     .filter((message) =>
       message.role === "user"
-        ? !fromGram(message) && textOf(message) !== ""
+        ? !fromGram(message) &&
+          (textOf(message) !== "" || message.parts.some((part) => part.type === "file"))
         : textOf(message) !== "" ||
-          message.parts.some((part) => part.type === "data-mock" || part.type === "data-doc"),
+          message.parts.some(
+            (part) =>
+              part.type === "data-mock" ||
+              part.type === "data-doc" ||
+              part.type === "data-widget" ||
+              (part.type === "data-tool-image" && part.data.path !== undefined),
+          ),
     )
     .slice(-limit);
 }

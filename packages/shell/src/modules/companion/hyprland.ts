@@ -45,6 +45,8 @@ interface HyprClient {
   readonly title: string;
   readonly at: readonly [number, number];
   readonly size: readonly [number, number];
+  readonly floating?: boolean;
+  readonly mapped?: boolean;
 }
 
 const isNumberPair = (value: unknown): value is readonly [number, number] =>
@@ -61,12 +63,24 @@ export function readClients(json: string): readonly HyprClient[] {
     const title = "title" in entry ? entry.title : undefined;
     const at = "at" in entry ? entry.at : undefined;
     const size = "size" in entry ? entry.size : undefined;
+    const floating = "floating" in entry ? entry.floating : undefined;
+    const mapped = "mapped" in entry ? entry.mapped : undefined;
     return typeof address === "string" &&
       typeof pid === "number" &&
       typeof title === "string" &&
       isNumberPair(at) &&
       isNumberPair(size)
-      ? [{ address, pid, title, at, size }]
+      ? [
+          {
+            address,
+            pid,
+            title,
+            at,
+            size,
+            ...(typeof floating === "boolean" ? { floating } : {}),
+            ...(typeof mapped === "boolean" ? { mapped } : {}),
+          },
+        ]
       : [];
   });
 }
@@ -121,6 +135,51 @@ export function areaFor(box: Box, areas: readonly Box[]): Box | undefined {
     }
   }
   return best;
+}
+
+/**
+ * The app's own windows, other than the companion, once Hyprland shows at least one of them:
+ * `undefined` while none is shown yet, else the addresses of those it tiles.
+ */
+export function tiledAppWindows(
+  clients: readonly HyprClient[],
+  pid: number,
+  companionTitle: string,
+): readonly string[] | undefined {
+  const own = clients.filter(
+    (each) => each.pid === pid && each.title !== companionTitle && each.mapped !== false,
+  );
+  if (own.length === 0) return undefined;
+  return own.filter((each) => each.floating === false).map((each) => each.address);
+}
+
+/**
+ * Floats the app's windows Hyprland tiled as they came back from companion mode, so full Gram
+ * opens over the person's layout and never reflows their other windows. Waits up to `timeoutMs`
+ * for a window to show.
+ */
+export async function floatAppWindows(
+  socket: string,
+  pid: number,
+  companionTitle: string,
+  timeoutMs = 2000,
+): Promise<void> {
+  for (let waited = 0; waited < timeoutMs; waited += 50) {
+    const tiled = tiledAppWindows(
+      readClients(await hyprlandRequest(socket, "j/clients")),
+      pid,
+      companionTitle,
+    );
+    if (tiled !== undefined) {
+      for (const address of tiled)
+        await hyprlandRequest(
+          socket,
+          `dispatch hl.dsp.window.float({ action = "toggle", window = "address:${address}" })`,
+        );
+      return;
+    }
+    await sleep(50);
+  }
 }
 
 const dispatchMove = (address: string, box: Box): string =>

@@ -1,17 +1,19 @@
 import type { DocCardData, GramUIMessage, MockCardData, ThreadId } from "@gram/contracts";
-import { FileText, Globe, LayoutDashboard } from "lucide-react";
+import { FileText, Globe, ImageIcon, LayoutDashboard } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { imageDataUrl, useCheckoutImage } from "@/panels/files/image-preview";
-import { isToolPart, toolNameOf } from "@/thread/parts";
+import { imageDataUrl, useAttachmentImage, useCheckoutImage } from "@/panels/files/image-preview";
+import { basename, isToolPart, toolNameOf } from "@/thread/parts";
+import { svgDataUrl } from "@/thread/widget-svg";
 
-import { useCompanion } from "./companion-store";
+import { useCompanion, type Picture } from "./companion-store";
 
 /** What a message shares that the chat shows as a card: a mock, a doc, or a preview started. */
 export type Shared =
   | { readonly kind: "mock"; readonly mock: MockCardData }
   | { readonly kind: "doc"; readonly doc: DocCardData }
-  | { readonly kind: "preview"; readonly url: string };
+  | { readonly kind: "preview"; readonly url: string }
+  | { readonly kind: "picture"; readonly title: string; readonly picture: Picture };
 
 const urlIn = (value: unknown): string | undefined => {
   if (typeof value === "string") return /^https?:\/\//u.test(value) ? value : undefined;
@@ -34,6 +36,12 @@ export function sharedIn(message: GramUIMessage): readonly Shared[] {
   return message.parts.flatMap((part): Shared[] => {
     if (part.type === "data-mock") return [{ kind: "mock", mock: part.data }];
     if (part.type === "data-doc") return [{ kind: "doc", doc: part.data }];
+    if (part.type === "data-widget")
+      return [{ kind: "picture", title: part.data.title, picture: { svg: part.data.svg } }];
+    if (part.type === "data-tool-image" && part.data.path !== undefined)
+      return [
+        { kind: "picture", title: basename(part.data.path), picture: { path: part.data.path } },
+      ];
     if (
       isToolPart(part) &&
       toolNameOf(part).endsWith("preview_start") &&
@@ -91,6 +99,19 @@ export function SharedCard({
           }
         />
       );
+    case "picture":
+      return (
+        <Card
+          kind="picture"
+          thumb={<PictureImage threadId={threadId} picture={shared.picture} alt="" fill />}
+          title={shared.title}
+          meta={["Picture"]}
+          action="View"
+          onAction={() =>
+            show({ kind: "picture", threadId, title: shared.title, picture: shared.picture })
+          }
+        />
+      );
     case "preview":
       return (
         <Card
@@ -140,6 +161,30 @@ function Card({
       <span className="shrink-0 text-meta text-link">{action}</span>
     </button>
   );
+}
+
+/** A picture the agent showed, as an image: a drawing as a static SVG, or a stored tool image. */
+export function PictureImage({
+  threadId,
+  picture,
+  alt,
+  fill = false,
+}: {
+  threadId: ThreadId;
+  picture: Picture;
+  alt: string;
+  fill?: boolean;
+}) {
+  const path = "path" in picture ? picture.path : "";
+  const stored = useAttachmentImage(threadId, path, path !== "");
+  const src = "svg" in picture ? svgDataUrl(picture.svg) : imageDataUrl(stored.data);
+  if (src === undefined)
+    return fill ? (
+      <ImageIcon aria-hidden className="size-5 text-muted-foreground" />
+    ) : (
+      <p className="text-meta text-subtle">{stored.isPending ? "Loading…" : "No picture"}</p>
+    );
+  return <img src={src} alt={alt} className={fill ? "size-full object-cover" : "block w-full"} />;
 }
 
 function MockThumbnail({ threadId, mock }: { threadId: ThreadId; mock: MockCardData }) {

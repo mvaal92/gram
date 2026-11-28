@@ -108,8 +108,11 @@
   border-radius: 9999px;
   background: var(--companion-mark, var(--surface-1));
 }
+/* The rising stroke passes under the other, as in Gram's app icon: a woven mark, not a close ×. */
 .companion-pebble[data-mark="cross"] .companion-mark::before {
   transform: rotate(32deg);
+  -webkit-mask: linear-gradient(black 0 36%, transparent 36% 64%, black 64%);
+  mask: linear-gradient(black 0 36%, transparent 36% 64%, black 64%);
 }
 .companion-pebble[data-mark="cross"] .companion-mark::after {
   transform: rotate(-32deg);
@@ -286,9 +289,18 @@
 
 /* How many things wait on the person: a neutral chip on the icon's edge with the count in amber,
    never an amber fill (DESIGN.md: a needs-you count is a neutral outline). */
+/* The count says what it counts by colour: amber for asks, red for blocked or failed work. */
 .companion-count {
   background: var(--surface-3);
   box-shadow: inset 0 0 0 1px var(--border-subtle);
+}
+.companion-count[data-tone="needs"] {
+  color: var(--status-needs);
+  box-shadow: inset 0 0 0 1.5px var(--status-needs-mark);
+}
+.companion-count[data-tone="stuck"] {
+  color: var(--danger-text);
+  box-shadow: inset 0 0 0 1.5px var(--danger);
 }
 
 /* A doc in the sheet reads like a page: a measured line, room between blocks, quiet headings. */
@@ -345,7 +357,7 @@
 }
 [data-testid="companion-history"] ol {
   list-style: decimal;
-  padding-left: 1.4em;
+  padding-left: 2.2em;
 }
 [data-testid="companion-history"] ul {
   list-style: disc;

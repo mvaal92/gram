@@ -224,7 +224,7 @@ describe("tasksOf", () => {
     ]);
     expect(tasks[1]?.progress).toBe("1/3");
     expect(tasks[2]?.line).toBe("Usage limit");
-    expect(tasksLine(tasks)).toBe("1 asks you · 1 running · 1 failed");
+    expect(tasksLine(tasks)).toBe("1 ask · 1 running · 1 failed");
   });
 });
 

@@ -5,10 +5,13 @@ import { useApi } from "@/api/context";
 import { Markdown } from "@/components/ai-elements/markdown";
 import { Button } from "@/components/ui/button";
 import { useDoc } from "@/docs/doc-queries";
+import { useThreadFeed } from "@/stores/feeds";
 import { formatStamp } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { imageDataUrl, useCheckoutImage } from "@/panels/files/image-preview";
 
+import { PictureImage } from "./companion-cards";
+import { lastExchange, type CompanionTask } from "./companion-model";
 import { ResizeGrip, sizedStyle } from "./companion-resize";
 import { useCompanion, type CompanionSheet } from "./companion-store";
 
@@ -16,17 +19,20 @@ const close = () => useCompanion.getState().showSheet(undefined);
 
 /**
  * The sheet grown out of the companion's corner in place of its dropdown: a doc to read at a
- * comfortable width, a mock's directions to look at and pick, or a question's pictures. Back returns
- * to the chat; Open in Gram hands over to the full app.
+ * comfortable width, a mock's directions to look at and pick, a question's pictures, or where a
+ * task stands. Back returns to the chat; only Open in Gram hands over to the full app.
  */
 export function Sheet({
   sheet,
   talkTo,
+  tasks,
   onOpen,
 }: {
   sheet: Exclude<CompanionSheet, { kind: "decide" }>;
   /** The thread a pick is sent to: the orchestrator the companion talks to. */
   talkTo: ThreadId | undefined;
+  /** The work the companion follows, so a task's sheet shows where it stands now. */
+  tasks: readonly CompanionTask[];
   onOpen: (threadId?: ThreadId) => void;
 }) {
   const pick = usePick();
@@ -69,6 +75,15 @@ export function Sheet({
               pick(talkTo, `Go with the "${name}" direction of the ${sheet.mock.title} mock.`)
             }
           />
+        ) : sheet.kind === "picture" ? (
+          <div data-testid="companion-picture" className="p-4">
+            <PictureImage threadId={sheet.threadId} picture={sheet.picture} alt={sheet.title} />
+          </div>
+        ) : sheet.kind === "task" ? (
+          <TaskSheet
+            threadId={sheet.threadId}
+            task={tasks.find((each) => each.id === sheet.threadId)}
+          />
         ) : (
           <Choices threadId={sheet.threadId} options={sheet.options} />
         )}
@@ -102,6 +117,41 @@ function DocReader({ sheet }: { sheet: Extract<CompanionSheet, { kind: "doc" }> 
         {doc.data.authorTitle} · revision {doc.data.revision} · {formatStamp(doc.data.updatedAt)}
       </p>
       <Markdown mode="static">{doc.data.content}</Markdown>
+    </article>
+  );
+}
+
+const PHASE_WORDS: Record<CompanionTask["phase"], string> = {
+  doing: "Working",
+  needs: "Asks you",
+  done: "Done",
+  failed: "Failed",
+};
+
+function TaskSheet({ threadId, task }: { threadId: ThreadId; task: CompanionTask | undefined }) {
+  const reply = useThreadFeed(threadId, (s) => lastExchange(s.messages).reply);
+  const phase =
+    task === undefined
+      ? undefined
+      : task.blocked === true
+        ? "Blocked"
+        : `${PHASE_WORDS[task.phase]}${task.progress === undefined ? "" : ` · ${task.progress}`}`;
+  return (
+    <article
+      data-testid="companion-task-sheet"
+      className="companion-reader flex flex-col gap-3 px-5 py-4"
+    >
+      {phase !== undefined && (
+        <p className="text-meta text-subtle">
+          {phase}
+          {task?.line === undefined ? "" : ` · ${task.line}`}
+        </p>
+      )}
+      {reply === undefined ? (
+        <p className="text-meta text-muted-foreground">No update from it yet.</p>
+      ) : (
+        <Markdown mode="static">{reply}</Markdown>
+      )}
     </article>
   );
 }

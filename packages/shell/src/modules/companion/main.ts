@@ -19,7 +19,7 @@ import {
 } from "./geometry.ts";
 import { FOLLOW_MS, followPointer, type Point } from "./follow.ts";
 import { latestOnly } from "./latest.ts";
-import { areaFor, hyprlandPlacer, hyprlandSocket } from "./hyprland.ts";
+import { areaFor, floatAppWindows, hyprlandPlacer, hyprlandSocket } from "./hyprland.ts";
 
 const DRAG_LIMIT_MS = 10_000;
 const DRAG_STILL_MS = 3_000;
@@ -59,15 +59,18 @@ const electronPlacer = (win: BrowserWindow): Placer => ({
   },
 });
 
+const waylandHyprland = (): string | undefined =>
+  process.platform === "linux" && process.env["XDG_SESSION_TYPE"] === "wayland"
+    ? hyprlandSocket()
+    : undefined;
+
 const compositorOrElectronPlacer = (
   win: BrowserWindow,
   title: string,
   pressed: () => boolean,
 ): Placer => {
-  const socket = process.platform === "linux" ? hyprlandSocket() : undefined;
-  if (socket === undefined || process.env["XDG_SESSION_TYPE"] !== "wayland") {
-    return electronPlacer(win);
-  }
+  const socket = waylandHyprland();
+  if (socket === undefined) return electronPlacer(win);
   const hyprland = hyprlandPlacer(socket, process.pid, title);
   const fallback = electronPlacer(win);
   win.setResizable(true);
@@ -114,14 +117,30 @@ const readStored = (path: string): Stored => {
   }
 };
 
-const restore = () => {
+const showOverTiledWindows = (win: BrowserWindow, companionTitle: string) => {
+  const socket = waylandHyprland();
+  if (socket === undefined) {
+    win.show();
+    return;
+  }
+  const resizable = win.isResizable();
+  win.setResizable(false);
+  win.show();
+  void floatAppWindows(socket, process.pid, companionTitle)
+    .catch(() => undefined)
+    .finally(() => {
+      if (!win.isDestroyed()) win.setResizable(resizable);
+    });
+};
+
+const restore = (companionTitle: string) => {
   const windows = appWindows();
   for (const each of windows) {
     if (!each.webContents.isDestroyed()) each.webContents.send(Channels.companionClosed);
   }
   const first = windows[0];
   if (first !== undefined && !first.isDestroyed()) {
-    first.show();
+    showOverTiledWindows(first, companionTitle);
     first.focus();
   }
 };
@@ -236,13 +255,13 @@ export function installCompanion(ipc: ShellIpc, deps: CompanionDeps) {
       }
       if (quitting) return;
       remember(false);
-      restore();
+      restore(deps.title);
     });
   };
 
   const close = async () => {
     if (!live()) {
-      restore();
+      restore(deps.title);
       return;
     }
     await serial(where);

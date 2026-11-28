@@ -8,7 +8,7 @@ import { StatusDot } from "@/orchestration/status-dot";
 import { useThreadFeed } from "@/stores/feeds";
 import { useThreadsStore } from "@/stores/threads";
 
-import { useCompanion } from "./companion-store";
+import { openTask, useCompanion } from "./companion-store";
 import { X } from "lucide-react";
 
 import {
@@ -69,11 +69,15 @@ interface PeekProps {
   todos: readonly PlanItem[] | undefined;
   busy: ActiveTool | undefined;
   own: ActiveTool | undefined;
-  onOpen: (threadId?: ThreadId) => void;
 }
 
-function PeekView({ needs, hosts, tasks, plan, todos, busy, own, onOpen }: PeekProps) {
-  const line = topLineOf({ needs: [], step: own ?? busy, plan, tasks });
+function PeekView({ needs, hosts, tasks, plan, todos, busy, own }: PeekProps) {
+  const line = topLineOf({
+    needs: [],
+    step: own ?? busy,
+    plan,
+    tasks: needs.length > 0 ? tasks.filter((task) => task.phase !== "needs") : tasks,
+  });
   const [pinned, setPinned] = useState(false);
   const [inside, setInside] = useState(false);
   const [eager, setEager] = useState(false);
@@ -143,7 +147,7 @@ function PeekView({ needs, hosts, tasks, plan, todos, busy, own, onOpen }: PeekP
             className="companion-asks flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2 text-meta text-status-needs outline-none hover:bg-surface-2 focus-visible:focus-ring"
           >
             <StatusDot state="needs" still />
-            {needs.length === 1 ? "1 asks you" : `${needs.length} ask you`}
+            {needs.length === 1 ? "1 ask" : `${needs.length} asks`}
           </button>
         )}
       </div>
@@ -154,9 +158,9 @@ function PeekView({ needs, hosts, tasks, plan, todos, busy, own, onOpen }: PeekP
           className="companion-peek absolute inset-x-2 top-7.5 z-10 flex max-h-[calc(100%-2.5rem)] flex-col gap-2 overflow-y-auto overscroll-contain rounded-xl p-2.5"
         >
           <PlanList plan={plan} todos={todos} />
-          <Tasks tasks={tasks} onOpen={onOpen} />
+          <Tasks tasks={tasks} />
           {hosts.map((summary) => (
-            <HostCard key={summary.thread.id} summary={summary} onOpen={onOpen} />
+            <HostCard key={summary.thread.id} summary={summary} />
           ))}
         </div>
       )}
@@ -167,13 +171,7 @@ function PeekView({ needs, hosts, tasks, plan, todos, busy, own, onOpen }: PeekP
 const PLAN_MARK = { completed: "✓", inProgress: "•", pending: "○", cancelled: "–" } as const;
 const STEP_MARK = { done: "✓", doing: "•", todo: "○" } as const;
 
-function Tasks({
-  tasks,
-  onOpen,
-}: {
-  tasks: readonly CompanionTask[];
-  onOpen: (threadId?: ThreadId) => void;
-}) {
+function Tasks({ tasks }: { tasks: readonly CompanionTask[] }) {
   if (tasks.length === 0) return null;
   const shown = tasks;
   return (
@@ -187,9 +185,8 @@ function Tasks({
             type="button"
             data-testid="companion-task"
             data-phase={task.phase}
-            title={task.line === undefined ? task.title : `${task.title}\n${task.line}`}
-            onClick={() => onOpen(task.id)}
-            className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md py-0.5 text-left text-meta hover:bg-surface-2"
+            onClick={() => openTask(task)}
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md py-0.5 text-left text-meta hover:bg-surface-2"
           >
             <StatusDot state={TASK_DOT[task.phase]} still={task.phase !== "doing"} />
             <span
@@ -218,7 +215,6 @@ function Tasks({
               type="button"
               data-testid="companion-task-dismiss"
               aria-label={`Dismiss ${task.title}`}
-              title="Dismiss"
               onClick={() => useCompanion.getState().dismiss(endingKey(task))}
               className="grid size-5 shrink-0 place-items-center rounded-2xs text-subtle opacity-60 outline-none group-hover/task:opacity-100 hover:bg-surface-2 hover:text-foreground focus-visible:focus-ring"
             >
@@ -305,20 +301,14 @@ function PlanList({
   );
 }
 
-function HostCard({
-  summary,
-  onOpen,
-}: {
-  summary: ThreadSummary;
-  onOpen: (threadId?: ThreadId) => void;
-}) {
+function HostCard({ summary }: { summary: ThreadSummary }) {
   const live = summary.status === "running" || summary.status === "starting";
   return (
     <button
       type="button"
       data-testid="companion-host"
-      onClick={() => onOpen(summary.thread.id)}
-      className="companion-inset flex flex-col gap-1 rounded-xl px-2.5 py-2 text-left text-meta hover:bg-surface-2"
+      onClick={() => openTask({ id: summary.thread.id, title: summary.thread.title })}
+      className="companion-inset flex cursor-pointer flex-col gap-1 rounded-xl px-2.5 py-2 text-left text-meta hover:bg-surface-2"
     >
       <span className="flex min-w-0 items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5">

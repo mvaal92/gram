@@ -132,7 +132,6 @@ export function ResizeGrip({ surface }: { surface: SizedSurface }) {
     <span
       aria-hidden
       data-testid="companion-resize"
-      title="Drag to resize · double-click to fit"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onRelease}

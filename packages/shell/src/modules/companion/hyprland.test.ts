@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { areaFor, hyprlandSocket, readClients, readCursor, readWorkAreas } from "./hyprland.ts";
+import {
+  areaFor,
+  hyprlandSocket,
+  readClients,
+  readCursor,
+  readWorkAreas,
+  tiledAppWindows,
+} from "./hyprland.ts";
 
 const monitors = JSON.stringify([
   { name: "HDMI-A-1", x: 0, y: 0, width: 3840, height: 2160, scale: 1, reserved: [0, 30, 0, 0] },
@@ -49,5 +56,40 @@ describe("readCursor", () => {
   it("reads the pointer, and nothing from an answer that isn't one", () => {
     expect(readCursor('{"x": 3693, "y": 157}')).toEqual({ x: 3693, y: 157 });
     expect(readCursor('"unknown request"')).toBeUndefined();
+  });
+});
+
+const client = (address: string, pid: number, title: string, floating: boolean, mapped = true) => ({
+  address,
+  pid,
+  title,
+  at: [0, 0],
+  size: [800, 600],
+  floating,
+  mapped,
+});
+
+describe("tiledAppWindows", () => {
+  it("waits until one of the app's own windows shows, leaving the companion and other apps out", () => {
+    const clients = readClients(
+      JSON.stringify([
+        client("0x1", 7, "Gram companion", true),
+        client("0x2", 9, "Editor", false),
+        client("0x3", 7, "Gram", false, false),
+      ]),
+    );
+    expect(tiledAppWindows(clients, 7, "Gram companion")).toBeUndefined();
+  });
+
+  it("names only the app's windows the compositor tiled", () => {
+    const clients = readClients(
+      JSON.stringify([
+        client("0x1", 7, "Gram companion", false),
+        client("0x2", 7, "Gram", false),
+        client("0x3", 7, "Gram · settings", true),
+        client("0x4", 9, "Editor", false),
+      ]),
+    );
+    expect(tiledAppWindows(clients, 7, "Gram companion")).toEqual(["0x2"]);
   });
 });

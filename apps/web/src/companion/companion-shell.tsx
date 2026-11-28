@@ -1,4 +1,10 @@
-import type { ThreadId, ThreadSummary, UserInput, WorkspaceState } from "@gram/contracts";
+import type {
+  GramUIMessage,
+  ThreadId,
+  ThreadSummary,
+  UserInput,
+  WorkspaceState,
+} from "@gram/contracts";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { ArrowUp, Plus } from "lucide-react";
 import { useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
@@ -48,7 +54,7 @@ import {
   type CompanionPlan,
   type CompanionTask,
 } from "./companion-model";
-import { followStoredCompanion, useCompanion } from "./companion-store";
+import { followStoredCompanion, openTask, useCompanion } from "./companion-store";
 import { isCompanionWindow, leaveCompanion } from "./desktop-companion";
 
 function useCompanionWorkspace(): WorkspaceState | undefined {
@@ -99,12 +105,13 @@ export function CompanionShell({ windowed = false }: { windowed?: boolean }) {
     [summaries, threadId, workspace],
   );
   const state = avatarState(target, watched);
-  const asks = needsPerson(watched, needs.length);
-  const asksHere = needs.some((item) => item.threadId !== undefined && item.threadId === threadId);
   const ledger = useOrchestratorLedger(workspace?.workspace.id).data;
-  const tasks = useMemo(() => tasksOf(ledger), [ledger]);
   const dismissed = useCompanion((s) => s.dismissed);
+  const tasks = useMemo(() => tasksOf(ledger), [ledger]);
   const open = useMemo(() => openTasks(tasks, dismissed), [tasks, dismissed]);
+  const asks = needsPerson(watched, needs.length) || open.some((task) => task.phase === "needs");
+  const asksHere = needs.some((item) => item.threadId !== undefined && item.threadId === threadId);
+
   const ledgerIn = workspace === undefined || ledger !== undefined;
   const plans = useMemo(() => plansOf(ledger), [ledger]);
   const plan = workspace === undefined ? threadPlanOf(target?.plan) : shownPlan(plans, tasks);
@@ -229,7 +236,7 @@ function Bubble({
   if (sheet?.kind === "decide" && needs.length > 0)
     return <Decide needs={needs} start={sheet.start} onOpen={openFull} />;
   if (sheet !== undefined && sheet.kind !== "decide")
-    return <Sheet sheet={sheet} talkTo={target?.thread.id} onOpen={openFull} />;
+    return <Sheet sheet={sheet} talkTo={target?.thread.id} tasks={tasks} onOpen={openFull} />;
   return (
     <section
       data-testid="companion-bubble"
@@ -252,7 +259,6 @@ function Bubble({
         tasks={open}
         plan={plan}
         busy={busy}
-        onOpen={openFull}
       />
       <div
         className={cn(
@@ -379,17 +385,10 @@ function Exchange({
       >
         {withEndings(history, tasks).map((row) => {
           if (row.kind === "ending")
-            return <EndingLine key={`end:${row.task.id}`} task={row.task} onOpen={onOpen} />;
+            return <EndingLine key={`end:${row.task.id}`} task={row.task} />;
           const message = row.message;
           return message.role === "user" ? (
-            <span
-              key={message.id}
-              className="companion-inset line-clamp-2 max-w-[85%] shrink-0 self-end rounded-lg px-2 py-1 text-meta text-muted-foreground"
-            >
-              {answerIn(textOf(message)) === undefined
-                ? textOf(message)
-                : `Answered: ${answerIn(textOf(message))}`}
-            </span>
+            <OwnMessage key={message.id} message={message} />
           ) : (
             <div
               key={message.id}
@@ -408,24 +407,58 @@ function Exchange({
   );
 }
 
+function OwnMessage({ message }: { message: GramUIMessage }) {
+  const [whole, setWhole] = useState(false);
+  const text = textOf(message);
+  const answer = answerIn(text);
+  const files = message.parts.flatMap((part) =>
+    part.type === "file" ? [part.filename ?? part.url.split("/").pop() ?? part.url] : [],
+  );
+  return (
+    <div
+      data-testid="companion-own"
+      className="companion-inset flex max-w-[85%] shrink-0 flex-col gap-1 self-end rounded-lg px-2 py-1 text-meta text-muted-foreground"
+    >
+      {text !== "" && (
+        <button
+          type="button"
+          aria-expanded={whole}
+          onClick={() => setWhole(!whole)}
+          className={cn(
+            "cursor-pointer text-left whitespace-pre-wrap outline-none focus-visible:focus-ring",
+            !whole && "line-clamp-4",
+          )}
+        >
+          {answer === undefined ? text : `Answered: ${answer}`}
+        </button>
+      )}
+      {files.length > 0 && (
+        <ul aria-label="Attached files" className="flex flex-wrap gap-1">
+          {files.map((name, index) => (
+            <li
+              key={`${name}:${index}`}
+              className="max-w-40 truncate rounded-md border border-edge px-1.5 font-mono text-meta"
+            >
+              {name}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 const ENDING_WORD = { done: "done", failed: "failed", doing: "", needs: "" } as const;
 
-function EndingLine({
-  task,
-  onOpen,
-}: {
-  task: CompanionTask;
-  onOpen: (threadId?: ThreadId) => void;
-}) {
+function EndingLine({ task }: { task: CompanionTask }) {
   const word = task.blocked === true ? "blocked" : ENDING_WORD[task.phase];
   return (
     <button
       type="button"
       data-testid="companion-ending"
       data-phase={task.phase}
-      onClick={() => onOpen(task.id)}
-      title={task.line}
-      className="flex min-w-0 shrink-0 items-center gap-1.5 self-start rounded-md text-left text-meta text-subtle hover:text-muted-foreground"
+      onClick={() => openTask(task)}
+      className="flex min-w-0 shrink-0 cursor-pointer items-center gap-1.5 self-start rounded-md text-left text-meta text-subtle hover:text-muted-foreground"
     >
       <StatusDot state={task.phase === "failed" ? "error" : "done"} still />
       <span className="truncate">
@@ -525,7 +558,6 @@ function Say({ summary }: { summary: ThreadSummary }) {
           variant="ghost"
           className="order-first rounded-full"
           aria-label="Attach files"
-          title="Attach files"
           data-testid="companion-attach"
           onClick={() => picker.current?.click()}
         >

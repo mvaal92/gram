@@ -129,7 +129,7 @@ test("files attach from the + button and from a drop on the icon, as chips, and 
   await expect(chips).toHaveCount(0);
 });
 
-test("the chat holds only messages; tasks and the plan open over it from the top line", async ({
+test("the chat holds only messages; tasks and the plan open over it from the top line, and a task opens in the sheet", async ({
   page,
 }) => {
   await page.addInitScript(() => sessionStorage.setItem("gram.mock.orchestration", "realistic"));
@@ -153,6 +153,12 @@ test("the chat holds only messages; tasks and the plan open over it from the top
   expect(await bubble.getByTestId("companion-history").boundingBox()).toEqual(history);
 
   await peek.getByTestId("companion-task").first().click();
+  const sheet = page.getByTestId("companion-sheet");
+  await expect(sheet).toHaveAttribute("data-kind", "task");
+  await expect(sheet.getByTestId("companion-task-sheet")).toBeVisible();
+  await expect(page.getByTestId("app-shell")).toHaveCount(0);
+
+  await sheet.getByRole("button", { name: "Open in Gram" }).click();
   await expect(page.getByTestId("app-shell")).toBeVisible();
   await expect(page).toHaveURL(/\/t\//);
 });
@@ -345,14 +351,14 @@ test("a right-click on the icon opens Customize; the background opacity applies 
   const backdrop = () =>
     page.evaluate(() => document.documentElement.style.getPropertyValue("--companion-backdrop"));
   await expect(customize.getByText("58%")).toBeVisible();
-  await page.getByTestId("companion-backdrop").fill("0.35");
-  await expect(customize.getByText("35%")).toBeVisible();
-  await expect.poll(backdrop).toBe("35%");
+  await page.getByTestId("companion-backdrop").fill("0.45");
+  await expect(customize.getByText("45%")).toBeVisible();
+  await expect.poll(backdrop).toBe("45%");
 
   await page.reload();
-  await expect.poll(backdrop).toBe("35%");
+  await expect.poll(backdrop).toBe("45%");
   await avatar.click({ button: "right" });
-  await expect(customize.getByText("35%")).toBeVisible();
+  await expect(customize.getByText("45%")).toBeVisible();
 
   await page.keyboard.press("Escape");
   await expect(customize).toHaveCount(0);
