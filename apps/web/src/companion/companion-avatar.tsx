@@ -1,4 +1,3 @@
-import { LayoutPanelLeft } from "lucide-react";
 import type { CompanionCorner, ThreadId } from "@gram/contracts";
 import {
   useRef,
@@ -9,13 +8,6 @@ import {
   type RefObject,
 } from "react";
 
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
-import { useShortcutHint } from "@/keyboard/use-shortcut-hint";
 import { useExternalSync, useSubscription } from "@/lib/effects";
 import { useFlash } from "@/lib/timers";
 import { cn } from "@/lib/utils";
@@ -486,45 +478,35 @@ function Avatar({
   onPointerMove: (event: PointerEvent<HTMLButtonElement>) => void;
   onPointerUp: () => void;
 }) {
-  const keys = useShortcutHint("view.companion");
+  const openMenu = useCompanion((s) => s.setOpen);
   return (
-    <ContextMenu>
-      <ContextMenuTrigger
-        render={
-          <button
-            type="button"
-            data-testid="companion-avatar"
-            data-state={state}
-            data-asks={asks || undefined}
-            data-lifted={lifted || undefined}
-            data-face-motion={faceOf(PEBBLE, state, asks).motion}
-            aria-expanded={open}
-            title={nativeTooltip}
-            aria-label={`${label ?? STATE_WORDS[state]}${asks ? ", something needs you" : ""}. ${open ? "Close" : "Open"} the companion`}
-            onClick={onClick}
-            onPointerEnter={() => onHover(true)}
-            onPointerLeave={() => onHover(false)}
-            onFocus={() => onHover(true)}
-            onBlur={() => onHover(false)}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-            className="companion-pebble relative grid shrink-0 cursor-grab touch-none place-items-center rounded-full outline-none select-none focus-visible:focus-ring"
-          />
-        }
-      >
-        <span aria-hidden className="companion-mark" />
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onClick={() => leaveCompanion()}>
-          <LayoutPanelLeft />
-          Open full Gram
-          {keys !== undefined && (
-            <span className="ml-auto text-meta text-muted-foreground">{keys}</span>
-          )}
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+    <button
+      type="button"
+      data-testid="companion-avatar"
+      data-state={state}
+      data-asks={asks || undefined}
+      data-lifted={lifted || undefined}
+      data-face-motion={faceOf(PEBBLE, state, asks).motion}
+      aria-expanded={open}
+      title={nativeTooltip}
+      aria-label={`${label ?? STATE_WORDS[state]}${asks ? ", something needs you" : ""}. ${open ? "Close" : "Open"} the companion`}
+      onClick={onClick}
+      onDoubleClick={() => leaveCompanion()}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        openMenu(true);
+      }}
+      onPointerEnter={() => onHover(true)}
+      onPointerLeave={() => onHover(false)}
+      onFocus={() => onHover(true)}
+      onBlur={() => onHover(false)}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      className="companion-pebble relative grid shrink-0 cursor-grab touch-none place-items-center rounded-full outline-none select-none focus-visible:focus-ring"
+    >
+      <span aria-hidden className="companion-mark" />
+    </button>
   );
 }

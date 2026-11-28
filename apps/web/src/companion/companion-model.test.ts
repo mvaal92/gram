@@ -5,10 +5,12 @@ import {
   activeTool,
   avatarState,
   excerpt,
+  historyOf,
   lastExchange,
   needsPerson,
   noticeDrops,
   ownLine,
+  workersLine,
 } from "./companion-model";
 
 const message = (role: "user" | "assistant", parts: unknown[]): GramUIMessage =>
@@ -120,5 +122,38 @@ describe("noticeDrops", () => {
     expect(asked.reply).toBeUndefined();
     expect(noticeDrops(seen, { ...now, reply: "New", open: true }).reply).toBeUndefined();
     expect(noticeDrops({ ...seen, loaded: false }, { ...now, reply: "New" }).reply).toBeUndefined();
+  });
+});
+
+const thread = (id: string, status: string, activity?: string) =>
+  ({ thread: { id }, status, ...(activity === undefined ? {} : { activity }) }) as never;
+
+describe("workersLine", () => {
+  it("counts the running workers, leaves the orchestrator out, and names what one is doing", () => {
+    const threads = [
+      thread("orch", "running", "Reading the ledger"),
+      thread("w1", "running", "Running tests"),
+      thread("w2", "starting"),
+      thread("w3", "idle"),
+    ];
+    expect(workersLine(threads, "orch" as never)?.label).toBe("2 workers · Running tests");
+    expect(workersLine([thread("orch", "running")], "orch" as never)).toBeUndefined();
+  });
+});
+
+describe("historyOf", () => {
+  it("keeps the person's and the agent's words and mocks, not Gram's notices, the latest last", () => {
+    const messages = [
+      message("user", [{ type: "text", text: "do it" }]),
+      message("user", [
+        { type: "text", text: "digest" },
+        { type: "data-orchestration-digest", data: {} },
+      ]),
+      message("assistant", [{ type: "tool-Bash", state: "input-available", input: {} }]),
+      message("assistant", [{ type: "data-mock", data: {} }]),
+      message("assistant", [{ type: "text", text: "done" }]),
+    ];
+    expect(historyOf(messages).map((m) => m.parts[0]?.type)).toEqual(["text", "data-mock", "text"]);
+    expect(historyOf(messages, 1)).toHaveLength(1);
   });
 });
