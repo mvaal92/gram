@@ -137,7 +137,7 @@ function Decision({
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
         <h2 data-testid="companion-decide-title" className="font-heading text-title text-pretty">
-          {ask?.lead ?? item.title}
+          {approval && item.command !== undefined ? "Run this command?" : (ask?.lead ?? item.title)}
         </h2>
         {ask?.context !== undefined && ask.context !== "" && (
           <p className="text-meta text-subtle">{ask.context}</p>

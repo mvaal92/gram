@@ -18,6 +18,7 @@ import {
   tasksOf,
   topLineOf,
   withEndings,
+  answerIn,
   workersLine,
 } from "./companion-model";
 
@@ -363,5 +364,15 @@ describe("withEndings", () => {
     expect(
       rows.map((row) => (row.kind === "message" ? row.message.id : `end:${row.task.id}`)),
     ).toEqual(["m1", "end:w1", "m2", "end:w2"]);
+  });
+});
+
+describe("answerIn", () => {
+  it("reads the answer out of an answered question's message, and nothing out of others", () => {
+    const text =
+      "Answer to Q4 in questions.md (“What should the release notes file be called?”): RELEASE-NOTES.md\n\n" +
+      "Gram has closed Q4 as answered. If you need more from the user, ask again.\n\n(answer key 1)";
+    expect(answerIn(text)).toBe("RELEASE-NOTES.md");
+    expect(answerIn("Answer the phone")).toBeUndefined();
   });
 });

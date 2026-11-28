@@ -40,6 +40,7 @@ import {
   workersLine,
   withEndings,
   excerpt,
+  answerIn,
   type ActiveTool,
   type CompanionPlan,
   type CompanionTask,
@@ -358,7 +359,9 @@ function Exchange({
               key={message.id}
               className="companion-inset line-clamp-2 max-w-[85%] shrink-0 self-end rounded-lg px-2 py-1 text-meta text-muted-foreground"
             >
-              {textOf(message)}
+              {answerIn(textOf(message)) === undefined
+                ? textOf(message)
+                : `Answered: ${answerIn(textOf(message))}`}
             </span>
           ) : (
             <div
