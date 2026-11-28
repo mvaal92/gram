@@ -13,6 +13,7 @@ export type CompanionSheet =
       readonly title: string;
     }
   | { readonly kind: "mock"; readonly threadId: ThreadId; readonly mock: MockCardData }
+  | { readonly kind: "decide"; readonly start?: string }
   | {
       readonly kind: "choices";
       readonly threadId: ThreadId;

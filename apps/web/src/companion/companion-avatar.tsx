@@ -467,8 +467,11 @@ function Presence({
                   data-testid="companion-drop"
                   data-tone={drop.shown.tone}
                   onClick={() => {
+                    const shown = drop.shown;
                     drop.dismiss();
-                    setOpen(true);
+                    if (shown?.tone === "needs")
+                      useCompanion.getState().showSheet({ kind: "decide", start: shown.key });
+                    else setOpen(true);
                   }}
                   className={cn(
                     "companion-glass companion-drop max-w-64 px-3 py-2 text-left text-body leading-snug text-foreground",

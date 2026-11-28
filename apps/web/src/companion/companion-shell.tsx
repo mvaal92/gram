@@ -20,6 +20,7 @@ import { useViewWorkspace } from "@/views/view-workspace";
 
 import { CompanionPresence } from "./companion-avatar";
 import { SharedCard, sharedIn } from "./companion-cards";
+import { Decide } from "./companion-decide";
 import { Sheet } from "./companion-sheet";
 import { Peek } from "./companion-peek";
 import {
@@ -204,7 +205,9 @@ function Bubble({
       .catch((error: unknown) => console.error("companion: start orchestrator", error))
       .finally(() => setStarting(false));
   };
-  if (sheet !== undefined)
+  if (sheet?.kind === "decide" && needs.length > 0)
+    return <Decide needs={needs} start={sheet.start} onOpen={openFull} />;
+  if (sheet !== undefined && sheet.kind !== "decide")
     return <Sheet sheet={sheet} talkTo={target?.thread.id} onOpen={openFull} />;
   return (
     <section

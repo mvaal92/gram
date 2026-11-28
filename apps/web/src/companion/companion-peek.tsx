@@ -8,7 +8,7 @@ import { StatusDot } from "@/orchestration/status-dot";
 import { useThreadFeed } from "@/stores/feeds";
 import { useThreadsStore } from "@/stores/threads";
 
-import { InboxCard } from "./companion-inbox";
+import { useCompanion } from "./companion-store";
 import {
   activeTool,
   hostLabel,
@@ -71,7 +71,7 @@ interface PeekProps {
 }
 
 function PeekView({ needs, hosts, tasks, plan, todos, busy, own, onOpen }: PeekProps) {
-  const line = topLineOf({ needs, step: own ?? busy, plan, tasks });
+  const line = topLineOf({ needs: [], step: own ?? busy, plan, tasks });
   const [pinned, setPinned] = useState(false);
   const [inside, setInside] = useState(false);
   const [eager, setEager] = useState(false);
@@ -84,11 +84,7 @@ function PeekView({ needs, hosts, tasks, plan, todos, busy, own, onOpen }: PeekP
   };
   const shown = open || pinned;
   const hasMore =
-    needs.length > 0 ||
-    hosts.length > 0 ||
-    tasks.length > 0 ||
-    plan !== undefined ||
-    (todos?.length ?? 0) > 0;
+    hosts.length > 0 || tasks.length > 0 || plan !== undefined || (todos?.length ?? 0) > 0;
   return (
     <div
       className="contents"
@@ -99,47 +95,56 @@ function PeekView({ needs, hosts, tasks, plan, todos, busy, own, onOpen }: PeekP
         if (event.pointerType === "mouse") leave();
       }}
     >
-      <button
-        type="button"
-        data-testid="companion-topline"
-        data-tone={line?.tone}
-        data-rest={line?.tone === "needs" || undefined}
-        aria-expanded={shown}
-        aria-label={line === undefined ? "Nothing running" : line.text}
-        disabled={line === undefined && !hasMore}
-        onWheel={() => {
-          setInside(true);
-          setEager(true);
-        }}
-        onClick={() => {
-          if (open && !pinned) return;
-          setPinned(!pinned);
-        }}
-        className="companion-topline flex h-6 min-w-0 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-left text-meta text-muted-foreground outline-none focus-visible:focus-ring"
-      >
-        {line !== undefined && (
-          <span className="flex min-w-0 flex-1 items-center gap-1.5">
-            <StatusDot state={TOP_DOT[line.tone]} still={line.tone !== "working"} />
-            <span
-              className={cn(
-                "min-w-0 flex-1 truncate",
-                line.tone === "needs" && "text-status-needs",
-              )}
-            >
-              {line.text}
+      <div className="flex min-w-0 shrink-0 items-center gap-1.5">
+        <button
+          type="button"
+          data-testid="companion-topline"
+          data-tone={line?.tone}
+          aria-expanded={shown}
+          aria-label={line === undefined ? "Nothing running" : line.text}
+          disabled={line === undefined && !hasMore}
+          onWheel={() => {
+            setInside(true);
+            setEager(true);
+          }}
+          onClick={() => {
+            if (open && !pinned) return;
+            setPinned(!pinned);
+          }}
+          className="companion-topline flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-left text-meta text-muted-foreground outline-none focus-visible:focus-ring"
+        >
+          {line !== undefined && (
+            <span className="flex min-w-0 flex-1 items-center gap-1.5">
+              <StatusDot state={TOP_DOT[line.tone]} still={line.tone !== "working"} />
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate",
+                  line.tone === "needs" && "text-status-needs",
+                )}
+              >
+                {line.text}
+              </span>
             </span>
-          </span>
+          )}
+        </button>
+        {needs.length > 0 && (
+          <button
+            type="button"
+            data-testid="companion-asks"
+            onClick={() => useCompanion.getState().showSheet({ kind: "decide" })}
+            className="companion-asks flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2 text-meta text-status-needs outline-none hover:bg-surface-2 focus-visible:focus-ring"
+          >
+            <StatusDot state="needs" still />
+            {needs.length === 1 ? "1 asks you" : `${needs.length} ask you`}
+          </button>
         )}
-      </button>
+      </div>
       {shown && hasMore && (
         <div
           ref={fitBubble}
           data-testid="companion-peek"
           className="companion-peek absolute inset-x-2 top-7.5 z-10 flex max-h-[calc(100%-2.5rem)] flex-col gap-2 overflow-y-auto overscroll-contain rounded-xl p-2.5"
         >
-          {needs.map((item) => (
-            <InboxCard key={item.key} item={item} onOpen={onOpen} />
-          ))}
           <PlanList plan={plan} todos={todos} />
           <Tasks tasks={tasks} onOpen={onOpen} />
           {hosts.map((summary) => (
