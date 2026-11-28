@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_DOCK, dockPoint, placementOf, readDock, snapDock } from "./companion-position";
+import {
+  DEFAULT_DOCK,
+  dockPoint,
+  placementOf,
+  readDock,
+  snapDock,
+  resizedBy,
+} from "./companion-position";
 
 const area = { width: 1000, height: 600 };
 
@@ -39,5 +46,39 @@ describe("readDock", () => {
     expect(readDock({ edge: "middle", t: 0.5 })).toEqual(DEFAULT_DOCK);
     expect(readDock({ edge: "left", t: Number.NaN })).toEqual(DEFAULT_DOCK);
     expect(readDock({ edge: "left", t: 4 })).toEqual({ edge: "left", t: 1 });
+  });
+});
+
+describe("resizedBy", () => {
+  const limits = { min: { width: 280, height: 200 }, max: { width: 760, height: 700 } };
+  const start = { width: 340, height: 300 };
+  it("grows from the corner away from the icon: down and left for a chat below and left of it", () => {
+    expect(
+      resizedBy(start, { x: -60, y: 80 }, { vertical: "below", horizontal: "end" }, limits),
+    ).toEqual({
+      width: 400,
+      height: 380,
+    });
+    expect(
+      resizedBy(start, { x: 60, y: -80 }, { vertical: "above", horizontal: "start" }, limits),
+    ).toEqual({
+      width: 400,
+      height: 380,
+    });
+  });
+
+  it("stays within its limits however far the corner goes", () => {
+    expect(
+      resizedBy(start, { x: 900, y: -900 }, { vertical: "below", horizontal: "end" }, limits),
+    ).toEqual({
+      width: 280,
+      height: 200,
+    });
+    expect(
+      resizedBy(start, { x: -900, y: 900 }, { vertical: "below", horizontal: "end" }, limits),
+    ).toEqual({
+      width: 760,
+      height: 700,
+    });
   });
 });

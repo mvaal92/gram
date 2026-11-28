@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 // Companion mode: the whole window becomes one avatar and its bubble, a message from the bubble
 // reaches the thread itself, and the same keys bring the full app back with the message in it.
@@ -268,4 +268,66 @@ test("a drag whose release never arrives ends on blur or a buttonless move, neve
   });
   await expect(anchor).not.toHaveAttribute("data-dragging", "true");
   await page.mouse.up();
+});
+
+/** Waits until the element's box holds still for ten frames: loaded, laid out and done animating. */
+const settled = (locator: Locator) =>
+  locator.evaluate(
+    (element) =>
+      new Promise<void>((resolve) => {
+        let last = "";
+        let still = 0;
+        const check = () => {
+          const box = element.getBoundingClientRect();
+          const now = `${box.x},${box.y},${box.width},${box.height}`;
+          still = now === last ? still + 1 : 0;
+          last = now;
+          if (still >= 10) resolve();
+          else requestAnimationFrame(check);
+        };
+        requestAnimationFrame(check);
+      }),
+  );
+
+test("the chat resizes from its free corner, keeps the size after a reload, and a double-click fits it again", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/t/t-docs");
+  await expect(page.getByTestId("app-shell")).toBeVisible();
+  await page.keyboard.press("ControlOrMeta+Alt+6");
+  await page.getByTestId("companion-avatar").click();
+  const bubble = page.getByTestId("companion-bubble");
+  await expect(bubble).toBeVisible();
+  await bubble.evaluate((element) =>
+    Promise.all(element.getAnimations().map((each) => each.finished)),
+  );
+  const before = (await bubble.boundingBox())!;
+  const handle = bubble.getByTestId("companion-resize");
+  await handle.hover();
+  const grip = (await handle.boundingBox())!;
+  const gx = grip.x + grip.width / 2;
+  const gy = grip.y + grip.height / 2;
+  const pressed = (await bubble.boundingBox())!;
+  await page.mouse.down();
+  await page.mouse.move(gx - 80, gy + 60, { steps: 8 });
+  await page.mouse.up();
+  const after = (await bubble.boundingBox())!;
+  expect(after.width).toBeGreaterThan(pressed.width + 60);
+  expect(Math.abs(after.x + after.width - (pressed.x + pressed.width))).toBeLessThan(2);
+
+  await page.reload();
+  await page.getByTestId("companion-avatar").click();
+  await expect(bubble).toBeVisible();
+  await bubble.evaluate((element) =>
+    Promise.all(element.getAnimations().map((each) => each.finished)),
+  );
+  const kept = (await bubble.boundingBox())!;
+  expect(Math.abs(kept.width - after.width)).toBeLessThan(2);
+  expect(Math.abs(kept.height - after.height)).toBeLessThan(2);
+
+  await bubble.getByTestId("companion-resize").dblclick();
+  await expect
+    .poll(async () => Math.round((await bubble.boundingBox())!.width))
+    .toBe(Math.round(before.width));
 });

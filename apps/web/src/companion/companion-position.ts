@@ -95,3 +95,31 @@ export function readDock(value: unknown): Dock {
     ? { edge, t: clamp01(t) }
     : DEFAULT_DOCK;
 }
+
+/** How small and how large a surface may be sized, in CSS pixels. */
+export interface SizeLimits {
+  readonly min: { readonly width: number; readonly height: number };
+  readonly max: { readonly width: number; readonly height: number };
+}
+
+const clampSize = (value: number, low: number, high: number) =>
+  Math.round(Math.min(Math.max(value, low), Math.max(low, high)));
+
+/**
+ * A surface's size after its free corner (the one away from the icon) moved by `dx, dy` from
+ * `start`. Opening below the icon its free corner is at the bottom, so dragging down grows it;
+ * opening above, at the top, so dragging up grows it. Likewise left or right of the icon.
+ */
+export function resizedBy(
+  start: { readonly width: number; readonly height: number },
+  delta: Point,
+  placement: Placement,
+  limits: SizeLimits,
+): { readonly width: number; readonly height: number } {
+  const width = start.width + (placement.horizontal === "end" ? -delta.x : delta.x);
+  const height = start.height + (placement.vertical === "below" ? delta.y : -delta.y);
+  return {
+    width: clampSize(width, limits.min.width, limits.max.width),
+    height: clampSize(height, limits.min.height, limits.max.height),
+  };
+}

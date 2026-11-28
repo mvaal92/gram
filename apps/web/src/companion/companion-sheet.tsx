@@ -9,6 +9,7 @@ import { formatStamp } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { imageDataUrl, useCheckoutImage } from "@/panels/files/image-preview";
 
+import { ResizeGrip, sizedStyle } from "./companion-resize";
 import { useCompanion, type CompanionSheet } from "./companion-store";
 
 const close = () => useCompanion.getState().showSheet(undefined);
@@ -29,6 +30,7 @@ export function Sheet({
   onOpen: (threadId?: ThreadId) => void;
 }) {
   const pick = usePick();
+  const sheetSize = useCompanion((s) => s.sizes.sheet);
   const title = sheet.kind === "mock" ? sheet.mock.title : sheet.title;
   const openIn = sheet.kind === "doc" ? undefined : sheet.threadId;
   return (
@@ -36,8 +38,10 @@ export function Sheet({
       data-testid="companion-sheet"
       data-kind={sheet.kind}
       aria-label={title}
-      className="companion-glass companion-sheet flex max-h-[min(42rem,calc(100dvh-6rem))] w-[min(34rem,calc(100vw-2rem))] flex-col"
+      style={sizedStyle(sheetSize)}
+      className="companion-glass companion-sheet relative flex max-h-[min(42rem,calc(100dvh-6rem))] w-[min(34rem,calc(100vw-2rem))] flex-col"
     >
+      <ResizeGrip surface="sheet" />
       <header className="flex min-w-0 items-center gap-2 border-b border-edge px-3 py-2">
         <Button size="icon-sm" variant="ghost" aria-label="Back to the chat" onClick={close}>
           <ArrowLeft />

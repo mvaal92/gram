@@ -10,6 +10,7 @@ import type { NeedsYouItem } from "@/orchestration/needs-you-items";
 import { useNeedsYouActions } from "@/orchestration/needs-you-row";
 import { imageDataUrl, useCheckoutImage } from "@/panels/files/image-preview";
 
+import { ResizeGrip, sizedStyle } from "./companion-resize";
 import { useCompanion } from "./companion-store";
 
 const KIND_WORD: Record<NeedsYouItem["kind"], string> = {
@@ -38,6 +39,7 @@ export function Decide({
   start: string | undefined;
   onOpen: (threadId?: ThreadId) => void;
 }) {
+  const sheetSize = useCompanion((s) => s.sizes.sheet);
   const [at, setAt] = useState(() =>
     Math.max(
       0,
@@ -55,8 +57,10 @@ export function Decide({
       data-testid="companion-decide"
       data-kind={item.kind}
       aria-label={`${KIND_WORD[item.kind]}: ${item.title}`}
-      className="companion-glass companion-sheet flex max-h-[min(42rem,calc(100dvh-6rem))] w-[min(34rem,calc(100vw-2rem))] flex-col"
+      style={sizedStyle(sheetSize)}
+      className="companion-glass companion-sheet relative flex max-h-[min(42rem,calc(100dvh-6rem))] w-[min(34rem,calc(100vw-2rem))] flex-col"
     >
+      <ResizeGrip surface="sheet" />
       <header className="flex min-w-0 items-center gap-2 border-b border-edge px-3 py-2">
         <Button size="icon-sm" variant="ghost" aria-label="Back to the chat" onClick={close}>
           <ArrowLeft />
