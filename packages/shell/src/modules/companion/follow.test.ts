@@ -63,3 +63,36 @@ describe("followPointer", () => {
     expect(await stopped).toMatchObject({ x: 200, y: 100 });
   });
 });
+
+describe("a drag whose release never arrives", () => {
+  it("ends once the pointer has stood still for the set number of ticks, and only once", async () => {
+    let pointer: Point = press;
+    let tick: (() => void) | undefined;
+    let ends = 0;
+    followPointer(box, press, {
+      cursor: () => Promise.resolve(pointer),
+      move: () => Promise.resolve(),
+      clamp: (target) => target,
+      every: (_ms, fn) => {
+        tick = fn;
+        return () => undefined;
+      },
+      still: { ticks: 3, onStill: () => (ends += 1) },
+    });
+    const at = async (x: number) => {
+      pointer = { x, y: 132 };
+      tick?.();
+      await flush();
+    };
+    await at(140);
+    await at(150);
+    await at(150);
+    await at(150);
+    expect(ends).toBe(0);
+    await at(150);
+    expect(ends).toBe(1);
+    await at(150);
+    await at(150);
+    expect(ends).toBe(1);
+  });
+});

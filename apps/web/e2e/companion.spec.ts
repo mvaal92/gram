@@ -231,3 +231,41 @@ test("asks open a decision view in place of the chat, step one by one, and answe
   await expect(page.getByTestId("companion-bubble")).toBeVisible();
   await expect(asks).toBeVisible();
 });
+
+test("a drag whose release never arrives ends on blur or a buttonless move, never stays held", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/t/t-flaky");
+  await expect(page.getByTestId("app-shell")).toBeVisible();
+  await page.keyboard.press("ControlOrMeta+Alt+6");
+  const anchor = page.getByTestId("companion-anchor");
+  const box = (await page.getByTestId("companion-avatar").boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx - 60, cy + 60, { steps: 6 });
+  await expect(anchor).toHaveAttribute("data-dragging", "true");
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  await expect(anchor).not.toHaveAttribute("data-dragging", "true");
+  await page.mouse.up();
+
+  const again = (await page.getByTestId("companion-avatar").boundingBox())!;
+  const ax = again.x + again.width / 2;
+  const ay = again.y + again.height / 2;
+  await page.mouse.move(ax, ay);
+  await page.mouse.down();
+  await page.mouse.move(ax - 60, ay + 60, { steps: 6 });
+  await expect(anchor).toHaveAttribute("data-dragging", "true");
+  await page.getByTestId("companion-avatar").dispatchEvent("pointermove", {
+    pointerId: 1,
+    pointerType: "mouse",
+    buttons: 0,
+    clientX: ax - 70,
+    clientY: ay + 70,
+  });
+  await expect(anchor).not.toHaveAttribute("data-dragging", "true");
+  await page.mouse.up();
+});

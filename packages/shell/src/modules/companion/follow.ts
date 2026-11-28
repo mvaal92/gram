@@ -16,6 +16,12 @@ export interface FollowDeps {
   /** Keeps a target on the screen. */
   readonly clamp: (box: Box) => Box;
   readonly every: (ms: number, tick: () => void) => () => void;
+  /**
+   * Called once when the pointer hasn't moved for this many ticks: a drag whose release never
+   * reached the page (the window moved under the pointer, or focus changed) ends here instead of
+   * gluing the window to the pointer.
+   */
+  readonly still?: { readonly ticks: number; readonly onStill: () => void };
 }
 
 /**
@@ -31,9 +37,19 @@ export function followPointer(
 ): { readonly stop: () => Promise<Box> } {
   let last = from;
   let inFlight: Promise<void> | undefined;
+  let seen: Point | undefined;
+  let stillFor = 0;
+  let ended = false;
   const step = async () => {
     const pointer = await deps.cursor();
     if (pointer === undefined) return;
+    if (seen !== undefined && seen.x === pointer.x && seen.y === pointer.y) stillFor += 1;
+    else stillFor = 0;
+    seen = pointer;
+    if (deps.still !== undefined && !ended && stillFor >= deps.still.ticks) {
+      ended = true;
+      deps.still.onStill();
+    }
     const target = deps.clamp({
       ...from,
       x: Math.round(from.x + pointer.x - pressedAt.x),
