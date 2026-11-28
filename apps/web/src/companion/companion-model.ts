@@ -589,3 +589,34 @@ export function topLineOf({
     text: counts,
   };
 }
+
+/** One row of the chat: a message, or a task's end as one quiet line between them. */
+export type ChatRow =
+  | { readonly kind: "message"; readonly message: GramUIMessage }
+  | { readonly kind: "ending"; readonly task: CompanionTask };
+
+/**
+ * The chat's rows: its messages in order, with each ended task placed where it ended, before the
+ * first message written after it. Endings with no time, or older than the oldest message shown,
+ * stay out: the chat says what happened while you talked, not the whole history.
+ */
+export function withEndings(
+  messages: readonly GramUIMessage[],
+  tasks: readonly CompanionTask[],
+): readonly ChatRow[] {
+  const first = messages[0]?.metadata?.createdAt;
+  const ended = endingsOf(tasks)
+    .filter((task) => task.at > 0 && (first === undefined || task.at >= first))
+    .toSorted((a, b) => a.at - b.at);
+  const rows: ChatRow[] = [];
+  let next = 0;
+  for (const message of messages) {
+    const sent = message.metadata?.createdAt ?? Number.NEGATIVE_INFINITY;
+    for (; next < ended.length && ended[next]!.at <= sent; next += 1) {
+      rows.push({ kind: "ending", task: ended[next]! });
+    }
+    rows.push({ kind: "message", message });
+  }
+  for (; next < ended.length; next += 1) rows.push({ kind: "ending", task: ended[next]! });
+  return rows;
+}

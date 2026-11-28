@@ -62,6 +62,7 @@ function SetupDialog() {
   const queryClient = useQueryClient();
   const linked = useCompanion((s) => s.workspaceId);
   const savedPings = useCompanion((s) => s.pings);
+  const alreadyOn = useCompanion((s) => s.on);
   const viewed = useViewWorkspace();
   const { workspaces, settled } = useWorkspacesQuery();
   const { data: projects = [] } = useQuery({
@@ -196,6 +197,7 @@ function SetupDialog() {
               icon={
                 <span
                   aria-hidden
+                  data-mark={faceOf(PEBBLE, "idle", false).mark.shape}
                   className="companion-pebble companion-pebble-sample grid shrink-0 place-items-center rounded-full"
                   style={skinStyle(PEBBLE, faceOf(PEBBLE, "idle", false))}
                 >
@@ -210,6 +212,9 @@ function SetupDialog() {
           <Switch checked={pings} onCheckedChange={setPings} data-testid="companion-setup-pings" />
         </label>
         {issue !== undefined && <FormError message={issue} />}
+        <p className="text-meta text-subtle">
+          Back to full Gram: double-click the icon or press Ctrl+Alt+6.
+        </p>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={close}>
             Cancel
@@ -219,7 +224,7 @@ function SetupDialog() {
             data-testid="companion-setup-on"
             disabled={busy || pick === undefined}
           >
-            Turn on companion
+            {alreadyOn ? "Save" : "Turn on companion"}
           </Button>
         </div>
       </form>

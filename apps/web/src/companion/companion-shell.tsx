@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { AttachmentChips } from "@/composer/attachment-chips";
 import { useAttachments } from "@/composer/use-attachments";
 import type { NeedsYouItem } from "@/orchestration/needs-you-items";
+import { StatusDot } from "@/orchestration/status-dot";
 import { useNeedsYouList } from "@/orchestration/use-needs-you";
 import { useOrchestratorLedger, useWorkspaces } from "@/orchestration/use-orchestration";
 import { useThreadFeed } from "@/stores/feeds";
@@ -37,6 +38,8 @@ import {
   tasksOf,
   threadPlanOf,
   workersLine,
+  withEndings,
+  excerpt,
   type ActiveTool,
   type CompanionPlan,
   type CompanionTask,
@@ -239,6 +242,7 @@ function Bubble({
             onExpand={() => setExpanded(true)}
             onAtNewest={setAtNewest}
             onOpen={openFull}
+            tasks={tasks}
           />
         ) : workspace !== undefined ? (
           <div className="flex flex-col items-start gap-2 text-body text-muted-foreground">
@@ -266,7 +270,9 @@ function Exchange({
   onExpand,
   onAtNewest,
   onOpen,
+  tasks,
 }: {
+  tasks: readonly CompanionTask[];
   summary: ThreadSummary;
   expanded: boolean;
   onExpand: () => void;
@@ -343,8 +349,11 @@ function Exchange({
           expanded ? "max-h-104" : "max-h-48",
         )}
       >
-        {history.map((message) =>
-          message.role === "user" ? (
+        {withEndings(history, tasks).map((row) => {
+          if (row.kind === "ending")
+            return <EndingLine key={`end:${row.task.id}`} task={row.task} onOpen={onOpen} />;
+          const message = row.message;
+          return message.role === "user" ? (
             <span
               key={message.id}
               className="companion-inset line-clamp-2 max-w-[85%] shrink-0 self-end rounded-lg px-2 py-1 text-meta text-muted-foreground"
@@ -362,17 +371,45 @@ function Exchange({
                 <SharedCard key={index} threadId={threadId} shared={shared} onOpen={onOpen} />
               ))}
             </div>
-          ),
-        )}
+          );
+        })}
       </div>
     </>
+  );
+}
+
+const ENDING_WORD = { done: "done", failed: "failed", doing: "", needs: "" } as const;
+
+function EndingLine({
+  task,
+  onOpen,
+}: {
+  task: CompanionTask;
+  onOpen: (threadId?: ThreadId) => void;
+}) {
+  const word = task.blocked === true ? "blocked" : ENDING_WORD[task.phase];
+  return (
+    <button
+      type="button"
+      data-testid="companion-ending"
+      data-phase={task.phase}
+      onClick={() => onOpen(task.id)}
+      title={task.line}
+      className="flex min-w-0 shrink-0 items-center gap-1.5 self-start rounded-md text-left text-meta text-subtle hover:text-muted-foreground"
+    >
+      <StatusDot state={task.phase === "failed" ? "error" : "done"} still />
+      <span className="truncate">
+        {task.title} · {word}
+        {task.line === undefined ? "" : ` · ${excerpt(task.line, 70)}`}
+      </span>
+    </button>
   );
 }
 
 function Say({ summary }: { summary: ThreadSummary }) {
   const api = useApi();
   const [text, setText] = useState("");
-  const input = useRef<HTMLInputElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   const attachments = useAttachments({ threadId: summary.thread.id });
   useMountEffect(() => input.current?.focus({ preventScroll: true }));
@@ -417,7 +454,7 @@ function Say({ summary }: { summary: ThreadSummary }) {
         onRemove={attachments.remove}
         className="px-1 pt-1"
       />
-      <div className="flex items-center gap-1">
+      <div className="flex items-end gap-1">
         <input
           ref={picker}
           type="file"
@@ -429,11 +466,34 @@ function Say({ summary }: { summary: ThreadSummary }) {
             event.target.value = "";
           }}
         />
+
+        <label className="sr-only" htmlFor="companion-input">
+          Message the orchestrator
+        </label>
+        <textarea
+          id="companion-input"
+          ref={input}
+          rows={1}
+          autoComplete="off"
+          aria-label="Message the orchestrator"
+          placeholder="Message the orchestrator…"
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+            event.preventDefault();
+            event.currentTarget.form?.requestSubmit();
+          }}
+          onPaste={(event) => {
+            if (attachments.add(event.clipboardData.files)) event.preventDefault();
+          }}
+          className="max-h-24 min-w-0 flex-1 resize-none self-center bg-transparent py-1 text-body leading-snug outline-none [field-sizing:content] placeholder:text-subtle"
+        />
         <Button
           type="button"
           size="icon-sm"
           variant="ghost"
-          className="rounded-full"
+          className="order-first rounded-full"
           aria-label="Attach files"
           title="Attach files"
           data-testid="companion-attach"
@@ -441,20 +501,6 @@ function Say({ summary }: { summary: ThreadSummary }) {
         >
           <Plus />
         </Button>
-        <label className="sr-only" htmlFor="companion-input">
-          Message the orchestrator
-        </label>
-        <input
-          id="companion-input"
-          ref={input}
-          autoComplete="off"
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onPaste={(event) => {
-            if (attachments.add(event.clipboardData.files)) event.preventDefault();
-          }}
-          className="min-w-0 flex-1 bg-transparent text-body outline-none placeholder:text-muted-foreground"
-        />
         <Button
           type="submit"
           size="icon-sm"

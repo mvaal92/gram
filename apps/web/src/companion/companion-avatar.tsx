@@ -200,6 +200,7 @@ function useWindowFit(
   anchor: RefObject<HTMLDivElement | null>,
   placement: Placement,
   resting: boolean,
+  steady: boolean,
 ): void {
   useSubscription(() => {
     const root = anchor.current;
@@ -209,6 +210,7 @@ function useWindowFit(
       bridge.fit({ width: 64, height: 64, corner: cornerOf(placement) });
       return undefined;
     }
+    let held = { width: 0, height: 0 };
     const fit = () => {
       window.scrollTo(0, 0);
       let left = Number.POSITIVE_INFINITY;
@@ -228,11 +230,17 @@ function useWindowFit(
       }
       const end = placement.horizontal === "end";
       const below = placement.vertical === "below";
-      bridge.fit({
+      const size = {
         width: Math.ceil((end ? window.innerWidth - left : right) + WINDOW_INSET),
         height: Math.ceil((below ? bottom : window.innerHeight - top) + WINDOW_INSET),
-        corner: cornerOf(placement),
-      });
+      };
+      if (steady) {
+        size.width = Math.max(size.width, held.width);
+        size.height = Math.max(size.height, held.height);
+        if (size.width === held.width && size.height === held.height) return;
+      }
+      held = size;
+      bridge.fit({ ...size, corner: cornerOf(placement) });
     };
     const observer = new ResizeObserver(fit);
     observer.observe(root);
@@ -244,7 +252,7 @@ function useWindowFit(
       observer.disconnect();
       root.removeEventListener("animationend", fit);
     };
-  }, [windowed, anchor, placement, resting]);
+  }, [windowed, anchor, placement, resting, steady]);
 }
 
 const besideStyle = ({ vertical, horizontal }: Placement): string =>
@@ -286,6 +294,7 @@ function Presence({
   const drop = useDrop({ open, loaded, reply, settled, needs, tasks });
   const [hovered, setHovered] = useState(false);
   const [fileOver, setFileOver] = useState(false);
+  const stuck = (tasks ?? []).filter((task) => task.phase === "failed").length;
   const anchor = useRef<HTMLDivElement>(null);
   const press = useRef<{ start: Point; offset: Point; moved: boolean } | undefined>(undefined);
   const [dragging, setDragging] = useState<Point | undefined>(undefined);
@@ -298,7 +307,7 @@ function Presence({
   useExternalSync(() => {
     if (!resting) findPlacement(windowed, setOnScreen);
   }, [resting, windowed]);
-  useWindowFit(windowed, anchor, placement, resting);
+  useWindowFit(windowed, anchor, placement, resting, open && !settled);
 
   const area = () => anchor.current?.parentElement?.getBoundingClientRect();
   const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
@@ -348,10 +357,17 @@ function Presence({
       ),
     });
   };
-  const onPointerUp = () => {
+  const tapped = useRef(false);
+  const onPointerUp = (event: PointerEvent<HTMLButtonElement>) => {
     const held = press.current;
     const bounds = area();
     press.current = undefined;
+    if (held !== undefined && !held.moved && event.type === "pointerup") {
+      tapped.current = true;
+      drop.dismiss();
+      setOpen(!open);
+      return;
+    }
     if (held?.moved !== true) return;
     dragged.current = true;
     if (windowed) {
@@ -363,7 +379,8 @@ function Presence({
     setDragging(undefined);
   };
   const onClick = () => {
-    if (dragged.current) {
+    if (tapped.current || dragged.current) {
+      tapped.current = false;
       dragged.current = false;
       return;
     }
@@ -417,13 +434,18 @@ function Presence({
       }}
     >
       {windowed && <span aria-hidden className="companion-grip" />}
-      {needs.length > 0 && (
+      {(needs.length > 0 || stuck > 0) && (
         <span
           aria-hidden
           data-testid="companion-count"
-          className="companion-count pointer-events-none absolute -bottom-1 -left-1 z-10 grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-caption leading-none font-semibold text-status-needs"
+          data-tone={needs.length > 0 ? "needs" : "stuck"}
+          className={cn(
+            "companion-count pointer-events-none absolute -top-1 -right-1 z-10 grid h-4.5 min-w-4.5 place-items-center rounded-full px-1 font-mono text-meta leading-none font-semibold",
+            needs.length > 0 ? "text-status-needs" : "text-muted-foreground",
+          )}
         >
-          {needs.length > 9 ? "9+" : needs.length}
+          {Math.min(needs.length > 0 ? needs.length : stuck, 9)}
+          {(needs.length > 0 ? needs.length : stuck) > 9 ? "+" : ""}
         </span>
       )}
       <Avatar
@@ -626,7 +648,7 @@ function Avatar({
   onHover: (hovered: boolean) => void;
   onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
   onPointerMove: (event: PointerEvent<HTMLButtonElement>) => void;
-  onPointerUp: () => void;
+  onPointerUp: (event: PointerEvent<HTMLButtonElement>) => void;
 }) {
   const openMenu = useCompanion((s) => s.setOpen);
   return (
@@ -638,6 +660,7 @@ function Avatar({
       data-lifted={lifted || undefined}
       data-file-over={fileOver || undefined}
       data-face-motion={faceOf(PEBBLE, state, asks).motion}
+      data-mark={faceOf(PEBBLE, state, asks).mark.shape}
       aria-expanded={open}
       title={nativeTooltip}
       aria-label={`${label ?? STATE_WORDS[state]}${asks ? ", something needs you" : ""}. ${open ? "Close" : "Open"} the companion`}
