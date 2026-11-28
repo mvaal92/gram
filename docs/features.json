@@ -1077,6 +1077,16 @@
       "ui": {
         "where": "Ctrl+Alt+6, or Companion mode in the command palette",
         "route": "/",
+        "steps": [
+          {
+            "key": "ControlOrMeta+Alt+Digit6"
+          },
+          {
+            "click": {
+              "testid": "companion-avatar"
+            }
+          }
+        ],
         "landmark": {
           "role": "region",
           "name": "Gram companion"
